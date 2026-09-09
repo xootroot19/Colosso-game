@@ -1,0 +1,1372 @@
+# AUTOSSUFICIENTE: salve somente este arquivo em .github/workflows/colosso-personagem.yml
+# Todos os fontes e recursos estão embutidos abaixo. Não requer secrets.
+name: Colosso — Personagem com rig
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/colosso-personagem.yml'
+permissions:
+  contents: read
+concurrency:
+  group: colosso-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    name: Compilar e disponibilizar APK
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Materializar projeto C++ e Android
+        shell: bash
+        run: |
+          python3 - <<'PY_PROJECT'
+          from pathlib import Path
+          files = {
+          '.gitignore': r'''.gradle/
+          .cxx/
+          **/build/
+          local.properties
+          *.apk
+          *.keystore
+          ''',
+          'README.md': r'''# Colosso — Personagem com rig / versão 2
+
+          O estudo de personagem aprovado foi integrado à arena Android C++: cabelo, rosto, corpo e roupa são a mesma geometria procedural, agora com rig de 18 ossos, pesos e animação esquelética na GPU. A espada acompanha a mão animada. Mantém a luta completa contra o colosso.
+
+          ## Usar somente o YAML
+
+          1. Salve o arquivo entregue em `.github/workflows/colosso-personagem.yml` no seu repositório GitHub.
+          2. Faça commit. O workflow **Colosso — Personagem com rig** inicia no push; também pode ser iniciado por **Actions → Run workflow** na branch principal.
+          3. Abra a execução e baixe **Artifacts → Colosso-Personagem-Rig-APK**. Extraia o ZIP e instale `Colosso-Personagem-Rig.apk`.
+
+          Não é necessário enviar o GLB, editar fontes, instalar Blender ou adicionar modelos/animações. O YAML contém os fontes Android, C++, geradores e testes. Durante a compilação, um script gera a malha e os pesos automaticamente. O runner precisa de internet para instalar as ferramentas, mas o jogo instalado funciona offline.
+
+          O APK é assinado automaticamente com a chave de debug do runner. Ao atualizar uma build anterior, o Android pode exigir desinstalar a versão antiga porque a chave pode ter mudado. Não é uma assinatura de distribuição para a Play Store. Requer Android 8.0+, GPU OpenGL ES 3 e tela horizontal. Inclui ARM64, ARMv7 e x86_64.
+
+          ## Rig e animação
+
+          Hierarquia com 18 ossos: raiz, quadril, coluna, peito, pescoço, cabeça, braços, antebraços, mãos, coxas, canelas e pés. Cada vértice dispõe de até quatro influências normalizadas. As matrizes hierárquicas e as matrizes inversas da pose de repouso deformam a malha na GPU, tanto na cena quanto na passagem de sombras.
+
+          Estados implementados: repouso/respiração, corrida, salto, queda, aterrissagem, escalada, esquiva, ataque, vitória e derrota. Transições interpolam as rotações ao longo do tempo. São animações esqueléticas procedurais; não são captura de movimento nem clips produzidos manualmente em Blender. Dedos e cabelo acompanham mãos/cabeça, sem ossos individuais ou simulação secundária.
+
+          A malha mantém aproximadamente 110 mil triângulos. A câmera foi aproximada. Não há garantia de 60 FPS: desempenho e compatibilidade precisam ser medidos em celulares reais. Partes da malha original se sobrepõem, e algumas junções podem mostrar artefatos em poses extremas. Ainda é um protótipo, não uma produção AAA.
+
+          ## Física e combate
+
+          Gravidade, velocidade, salto, atrito de movimento, colisões com chão, colunas, pernas do gigante e limites da arena. Há dano de queda, ondas de impacto, vida e estamina. A esquiva oferece invulnerabilidade breve e custa estamina. A escalada prende o controlador a uma rota sobre o corpo do gigante; não é simulação física livre de agarramento. Não há ragdoll ou motor de corpos rígidos externo.
+
+          ## Controles
+
+          | Entrada | Ação |
+          |---|---|
+          | Joystick esquerdo | Mover; durante a escalada, subir/descer |
+          | Arrastar região direita livre | Girar/inclinar a câmera |
+          | ATACAR | Golpear o selo ativo próximo; um toque por golpe |
+          | PULAR | Saltar; ao escalar, saltar para trás e soltar |
+          | AGARRAR/SOLTAR | Iniciar escalada perto da base ou soltar |
+          | ESQUIVAR | Avançar rapidamente com invulnerabilidade breve |
+          | PAUSA / Voltar | Pausar/retomar |
+
+          Quebre o selo da perna com três golpes, agarre o gigante, suba ao peito e acerte três golpes. Continue até a cabeça e acerte quatro. Os apoios em 8,5 m e 15,6 m recuperam estamina quando você para. Pare o joystick no aviso de sacudida. Salte ou esquive da onda laranja dos pisões.
+
+          ## Build e validação
+
+          O workflow instala Python 3.12/NumPy 1.26.4 para gerar a malha, JDK 17, Gradle 8.9, AGP 8.7.3, SDK 35, NDK 27.2.12479018 e CMake 3.22.1. Não é necessário acesso à Epic ou a assets externos.
+
+          A build executa os testes de física/combate e de rig/animação antes de compilar as três arquiteturas. Verifica a assinatura, o alinhamento do APK e a presença das bibliotecas nativas e do asset de personagem. Um segundo job instala o APK no emulador e verifica a abertura, salvando log e captura.
+
+          Nesta entrega, os testes C++ e a renderização OpenGL ES foram executados localmente. A compilação Android, a Activity Java e o workflow desta versão ainda não foram executados aqui. Leia `VALIDACAO.md` para os limites dos testes.
+
+          ## Desenvolvimento a partir dos fontes
+
+          Execute `python3 -m pip install numpy==1.26.4`, depois `python3 tools/bake_character.py` e então `gradle :app:assembleDebug` com o SDK/NDK instalados. O asset `app/src/main/assets/character.skin` é gerado, não precisa ser criado manualmente.
+
+          O YAML é um snapshot dos fontes. Alterar um fonte extraído não muda automaticamente o conteúdo embutido no YAML. O formato binário nativo não é GLB; o rig é definido em `rig.hpp` e os pesos são gerados em `tools/bake_character.py`.
+          ''',
+          'VALIDACAO.md': r'''# Validação da versão 2
+
+          Executado localmente nesta sessão:
+
+          - Geração da malha aprovada: 59.550 vértices, 109.928 triângulos, rig de 18 ossos e quatro slots de influência por vértice. Índices dentro dos limites, dados finitos e pesos normalizados.
+          - GCC/C++17 com `-Wall -Wextra -Werror` e UndefinedBehaviorSanitizer: testes da física, combate e rig passaram.
+          - Rig: pose de repouso produz matrizes identidade; hierarquia mantém o comprimento entre juntas; dez estados de animação exercitados; pausa preserva a pose; simulação integrada mantém matrizes finitas.
+          - Física: salto, aterrissagem, colisão com coluna, limites da arena, escalada, recuperação/esgotamento de estamina, ondas de impacto, esquiva, derrota e reinício.
+          - Luta automatizada, usando entradas normais desde o spawn, alcançou vitória com os dez golpes. Esse controlador conhece a posição dos selos e não representa uma partida humana.
+          - Renderização real com EGL/OpenGL ES 3.2 Mesa llvmpipe: shaders de skinning e sombras compilaram; malha e espada foram desenhadas na arena, em corrida, ataque e escalada, sem erros OpenGL. Capturas inspecionadas.
+          - YAML analisado e sintaxe dos comandos verificada; fontes embutidos reconstruídos e comparados ao projeto. O gerador de malha não requer Blender nem download de modelos.
+
+          Ainda não executado nesta sessão:
+
+          - Compilação com SDK/NDK e Gradle, compilação Java Android e workflow em uma conta GitHub.
+          - Instalação deste APK em emulador ou aparelho físico, multitouch, áudio e ciclo de vida Android desta versão.
+          - Medições de FPS, consumo de memória e aquecimento em dispositivos físicos.
+
+          O harness gráfico usa declarações locais de ligação para JNI e um contexto OpenGL real. Ele verifica o renderizador C++, mas não substitui a compilação Android. O smoke test incluído no YAML verificará abertura/renderização no emulador quando o workflow for executado; não testa a luta completa pela interface touch.
+          ''',
+          'app/build.gradle': r'''plugins { id 'com.android.application' }
+          android {
+              namespace 'com.aurora.colosso'
+              compileSdk 35
+              buildToolsVersion '35.0.0'
+              ndkVersion '27.2.12479018'
+              defaultConfig {
+                  applicationId 'com.aurora.colosso'
+                  minSdk 26
+                  targetSdk 35
+                  versionCode 2
+                  versionName '2.0-rig'
+                  ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
+                  externalNativeBuild { cmake { arguments '-DANDROID_STL=c++_static', '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'; cppFlags '-std=c++17 -O2 -Wall -Wextra' } }
+              }
+              externalNativeBuild { cmake { path 'src/main/cpp/CMakeLists.txt'; version '3.22.1' } }
+              buildTypes { debug { debuggable true }; release { minifyEnabled false } }
+              compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+          }
+
+          tasks.named("preBuild").configure { doFirst { if (!file("src/main/assets/character.skin").exists()) throw new GradleException("Run python3 tools/bake_character.py from project root before building") } }
+          ''',
+          'app/src/main/AndroidManifest.xml': r'''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+              <uses-permission android:name="android.permission.VIBRATE" />
+              <application android:theme="@style/GameTheme" android:label="Colosso: Cinzas" android:icon="@drawable/icon" android:allowBackup="false" android:supportsRtl="true">
+                  <activity android:name=".MainActivity" android:screenOrientation="sensorLandscape" android:configChanges="orientation|screenSize|keyboardHidden" android:exported="true">
+                      <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          ''',
+          'app/src/main/cpp/CMakeLists.txt': r'''cmake_minimum_required(VERSION 3.22.1)
+          project(colosso LANGUAGES CXX)
+          add_library(colosso SHARED renderer.cpp)
+          target_compile_features(colosso PRIVATE cxx_std_17)
+          target_link_libraries(colosso GLESv3 android log)
+          ''',
+          'app/src/main/cpp/game.hpp': r'''#pragma once
+          #include <algorithm>
+          #include <cmath>
+          #include <vector>
+          #include <cstdint>
+
+          namespace cc {
+          constexpr float PI=3.14159265359f;
+          inline float clamp(float v,float a,float b){return std::max(a,std::min(b,v));}
+          struct V { float x=0,y=0,z=0; V operator+(V b)const{return{x+b.x,y+b.y,z+b.z};} V operator-(V b)const{return{x-b.x,y-b.y,z-b.z};} V operator*(float s)const{return{x*s,y*s,z*s};} };
+          inline float dot(V a,V b){return a.x*b.x+a.y*b.y+a.z*b.z;}
+          inline V cross(V a,V b){return{a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x};}
+          inline float length(V a){return std::sqrt(dot(a,a));}
+          inline V norm(V a){return a*(1/std::max(.00001f,length(a)));}
+          inline float distanceXZ(V a,V b){return length({a.x-b.x,0,a.z-b.z});}
+          struct Obstacle { V p; float r,h; };
+          struct Particle { V p,v; float life,maxLife,size; int kind; };
+          struct Input {float x=0,y=0,lookX=0,lookY=0; unsigned buttons=0;};
+          enum Button:unsigned {Jump=1,Attack=2,Grab=4,Dodge=8,Start=16,Pause=32,Reset=64};
+          enum Event:unsigned {Hit=1,Hurt=2,Stomp=4,Win=8,Leap=16};
+          enum Mode {Title,Playing,Paused,Victory,Defeat};
+
+          struct Game {
+              V player{0,0,19},velocity{},boss{0,0,-3},shockCenter{};
+              float yaw=0,pitch=-.16f,facing=PI,hp=100,stamina=100,t=0,elapsed=0;
+              float attackCD=0,attackAnim=0,invulnerable=0,dodgeTime=0;
+              float bossClock=0,shock=-1,shakeClock=0,victoryTime=0,flash=0;
+              bool climbing=false,shockHit=false; int phase=0,hits=0,totalHits=0;
+              Mode mode=Title; unsigned events=0; uint32_t seed=2471;
+              std::vector<Obstacle> obstacles;
+              std::vector<Particle> particles;
+              Game(){for(int i=0;i<18;i++){float a=i*2*PI/18;obstacles.push_back({{std::sin(a)*31,0,std::cos(a)*31},1.4f,9+float(i%4)*2});}}
+              float random(){seed=1664525*seed+1013904223;return float(seed>>8)/16777216.f;}
+              V weak()const{return boss+V{phase==0?-2.5f:0,phase==0?2.3f:(phase==1?12.3f:20.2f),phase==0?2.0f:(phase==1?3.1f:1.8f)};}
+              int needed()const{return phase==2?4:3;}
+              float bossHealth()const{return clamp(1-totalHits/10.f,0,1);}
+              float climbZ()const{return player.y<8?2.05f:(player.y<16?3.15f:1.9f);}
+              bool resting()const{return (std::abs(player.y-8.5f)<.6f||std::abs(player.y-15.6f)<.6f);}
+              void burst(V p,int count,int kind){for(int i=0;i<count&&particles.size()<400;i++){float l=.5f+random()*1.1f;particles.push_back({p,{(random()-.5f)*8,2+random()*8,(random()-.5f)*8},l,l,.07f+random()*.19f,kind});}}
+              void hurt(float damage){if(invulnerable>0||mode!=Playing)return;hp=std::max(0.f,hp-damage);flash=.6f;invulnerable=1.1f;events|=Hurt;if(hp<=0){mode=Defeat;climbing=false;}}
+              void detach(){climbing=false;velocity={0,4,5};player.z+=1;invulnerable=.7f;}
+              void step(float dt,Input in={}){
+                  if(in.buttons&Reset){*this=Game();mode=Playing;return;}
+                  if(in.buttons&Start){if(mode==Title)mode=Playing;else if(mode==Paused)mode=Playing;}
+                  if(in.buttons&Pause){if(mode==Playing)mode=Paused;else if(mode==Paused)mode=Playing;}
+                  if(mode==Title){t+=dt;return;}
+                  if(mode==Paused||mode==Defeat)return;
+                  t+=dt;
+                  for(auto &p:particles){p.life-=dt;p.v.y-=12*dt;p.p=p.p+p.v*dt;if(p.p.y<.06f){p.p.y=.06f;p.v.y*= -.3f;}}
+                  particles.erase(std::remove_if(particles.begin(),particles.end(),[](const Particle&p){return p.life<=0;}),particles.end());
+                  if(mode==Victory){velocity.y-=23*dt;player=player+velocity*dt;if(player.y<0){player.y=0;velocity={};}victoryTime+=dt;if(victoryTime<3&&random()<.35f)burst(boss+V{(random()-.5f)*10,random()*20,0},5,0);return;}
+                  elapsed+=dt;flash=std::max(0.f,flash-dt);attackCD=std::max(0.f,attackCD-dt);attackAnim=std::max(0.f,attackAnim-dt);
+                  invulnerable=std::max(0.f,invulnerable-dt);dodgeTime=std::max(0.f,dodgeTime-dt);
+                  yaw-=in.lookX;pitch=clamp(pitch+in.lookY,-.65f,1.10f);
+                  float mag=std::sqrt(in.x*in.x+in.y*in.y);if(mag>1){in.x/=mag;in.y/=mag;}
+                  V forward{-std::sin(yaw),0,-std::cos(yaw)},right{std::cos(yaw),0,-std::sin(yaw)};
+                  V movement=right*in.x+forward*in.y;
+                  if(in.buttons&Grab){
+                      if(climbing)detach();
+                      else if(distanceXZ(player,boss)<6.7f&&player.y<5&&stamina>15){climbing=true;player.y=std::max(1.f,player.y);velocity={};}
+                  }
+                  if(climbing){
+                      float speed=2.6f;
+                      player.y=clamp(player.y+in.y*speed*dt,1.f,20.2f);
+                      player.x=boss.x+(player.y<8?-2.5f*(1-clamp((player.y-6)/2,0,1)):0);
+                      player.z=boss.z+climbZ()+.5f;
+                      facing=PI;
+                      stamina=clamp(stamina+((resting()&&std::abs(in.y)<.15f)?25.f:-(std::abs(in.y)>.1f?3.8f:1.2f))*dt,0,100);
+                      shakeClock+=dt;
+                      if(shakeClock>=7.5f){shakeClock=0;if(std::abs(in.y)>.2f){stamina=std::max(0.f,stamina-28);burst(player,12,0);events|=Stomp;}}
+                      if((in.buttons&Jump)||stamina<=0)detach();
+                  }else{
+                      shakeClock=0;
+                      bool grounded=player.y<=.001f;
+                      if((in.buttons&Dodge)&&stamina>=18&&grounded&&dodgeTime<=0){stamina-=18;dodgeTime=.36f;invulnerable=.46f;if(length(movement)<.1f)movement={std::sin(facing),0,std::cos(facing)};velocity.x=movement.x*15;velocity.z=movement.z*15;}
+                      if(dodgeTime<=0){float k=std::min(1.f,dt*(grounded?13:4));velocity.x+=(movement.x*6.8f-velocity.x)*k;velocity.z+=(movement.z*6.8f-velocity.z)*k;}
+                      if(length(movement)>.1f)facing=std::atan2(movement.x,movement.z);
+                      if((in.buttons&Jump)&&grounded){velocity.y=9.1f;events|=Leap;}
+                      velocity.y-=23*dt;player=player+velocity*dt;
+                      if(player.y<0){if(velocity.y<-18)hurt((-velocity.y-18)*2.0f);player.y=0;velocity.y=0;}
+                      float edge=distanceXZ(player,{});if(edge>38){player.x*=38/edge;player.z*=38/edge;}
+                      for(const auto&o:obstacles){float d=distanceXZ(player,o.p),r=o.r+.4f;if(d<r&&player.y<o.h){V n=norm(V{player.x-o.p.x,0,player.z-o.p.z});if(d<.001f)n={1,0,0};player=player+n*(r-d);}}
+                      // Two stone legs are separate collision cylinders, leaving a passage between them.
+                      for(float side:{-1.f,1.f}){V c=boss+V{side*2.5f,0,0};float d=distanceXZ(player,c);if(d<1.95f&&player.y<8){V n=norm(V{player.x-c.x,0,player.z-c.z});if(d<.001f)n={0,0,1};player=player+n*(1.95f-d);}}
+                      stamina=clamp(stamina+15*dt,0,100);
+                  }
+                  if((in.buttons&Attack)&&attackCD<=0&&stamina>=7){
+                      attackCD=.55f;attackAnim=.42f;stamina-=7;
+                      V hand=player+V{0,1.1f,0};
+                      if(length(hand-weak())<2.45f){
+                          hits++;totalHits++;events|=Hit;burst(weak(),35,1);
+                          if(hits>=needed()){phase++;hits=0;stamina=100;hp=std::min(100.f,hp+18);burst(weak(),35,1);if(phase>=3){phase=2;mode=Victory;events|=Win;climbing=false;}}
+                      }
+                  }
+                  if(mode!=Playing)return;
+                  float dist=distanceXZ(player,boss);
+                  if(!climbing&&dist>11&&bossClock<3.8f){V d=norm(V{player.x-boss.x,0,player.z-boss.z});V next=boss+d*(dt*.65f);if(distanceXZ(next,{})<17)boss=next;}
+                  bossClock+=dt;
+                  float period=phase==2?5.0f:6.2f;
+                  if(bossClock>=period){bossClock=0;shock=0;shockHit=false;shockCenter=boss;events|=Stomp;burst(boss+V{2.5f,0,2},45,0);}
+                  if(shock>=0){shock+=dt*13;float d=distanceXZ(player,shockCenter);if(!shockHit&&std::abs(d-shock)<1.3f&&!climbing&&player.y<1.2f){hurt(24);shockHit=true;}if(shock>40)shock=-1;}
+                  if(climbing&&phase==0&&player.y>5){/* Lower seal can still be reached by descending. */}
+              }
+          };
+          }
+          ''',
+          'app/src/main/cpp/renderer.cpp': r'''#include "game.hpp"
+          #include "rig.hpp"
+          #include <cstring>
+          #include <array>
+          #include <string>
+          #include <stdexcept>
+          #ifndef SCENE_EXPORT
+          #include <jni.h>
+          #include <GLES3/gl3.h>
+          #include <android/log.h>
+          #endif
+          using namespace cc;
+          struct Mat{float a[16]{};};
+          Mat identity(){Mat m;for(int i=0;i<4;i++)m.a[i*5]=1;return m;}
+          Mat mul(Mat a,Mat b){Mat c;for(int i=0;i<4;i++)for(int j=0;j<4;j++)for(int k=0;k<4;k++)c.a[i*4+j]+=a.a[k*4+j]*b.a[i*4+k];return c;}
+          Mat transform(V p,V s,float yaw=0,float roll=0){
+              Mat t=identity(),y=identity(),z=identity(),scale=identity();
+              t.a[12]=p.x;t.a[13]=p.y;t.a[14]=p.z;
+              y.a[0]=y.a[10]=std::cos(yaw);y.a[2]=-std::sin(yaw);y.a[8]=std::sin(yaw);
+              z.a[0]=z.a[5]=std::cos(roll);z.a[1]=std::sin(roll);z.a[4]=-std::sin(roll);
+              scale.a[0]=s.x;scale.a[5]=s.y;scale.a[10]=s.z;return mul(t,mul(y,mul(z,scale)));
+          }
+          Mat lookAt(V eye,V target){V f=norm(target-eye),s=norm(cross(f,{0,1,0})),u=cross(s,f);Mat m=identity();m.a[0]=s.x;m.a[4]=s.y;m.a[8]=s.z;m.a[1]=u.x;m.a[5]=u.y;m.a[9]=u.z;m.a[2]=-f.x;m.a[6]=-f.y;m.a[10]=-f.z;m.a[12]=-dot(s,eye);m.a[13]=-dot(u,eye);m.a[14]=dot(f,eye);return m;}
+          Mat perspective(float aspect){Mat m;float f=1/std::tan(.95f/2);m.a[0]=f/aspect;m.a[5]=f;m.a[10]=-(180.f+.15f)/(180.f-.15f);m.a[11]=-1;m.a[14]=-2*180*.15f/(180-.15f);return m;}
+          Mat ortho(float r){Mat m=identity();m.a[0]=m.a[5]=1/r;m.a[10]=-2.f/160;m.a[14]=-1;return m;}
+          struct Instance{Mat model;float color[4];};
+          Game game;
+          Rig heroRig;
+          std::vector<Instance> world,objects;
+          V stone{.38f,.40f,.34f},trim{.56f,.54f,.43f},moss{.25f,.33f,.23f},cyan{.25f,1,.88f};
+          void box(std::vector<Instance>&out,V p,V s,V c,float yaw=0,float roll=0,float glow=0){out.push_back({transform(p,s,yaw,roll),{c.x,c.y,c.z,glow}});}
+          void tower(std::vector<Instance>&out,V p,float radius,float height,int segments=10){
+              for(int level=0;level<int(height/.65f);level++){
+                  float y=.325f+level*.65f,rr=radius*(1-.12f*y/height);
+                  for(int i=0;i<segments;i++){float a=(i+(level%2)*.5f)*2*PI/segments;float shade=.87f+.13f*std::sin(i*47.f+level*12.f);box(out,p+V{std::sin(a)*rr,y,std::cos(a)*rr},{rr*.64f,.60f,.58f},stone*shade,a);}
+              }
+              box(out,p+V{0,height,0},{radius*2.45f,.48f,radius*2.45f},trim);
+          }
+          void makeWorld(){
+              world.clear();box(world,{0,-.5f,0},{100,1,100},{.29f,.31f,.25f});
+              for(int i=0;i<18;i++){
+                  const auto&o=game.obstacles[i];tower(world,o.p,1.1f,o.h,8);
+                  if(i%3!=0){float a=(i+.5f)*2*PI/18;box(world,{std::sin(a)*30.5f,8.7f,std::cos(a)*30.5f},{9.4f,1.1f,1.8f},trim,a);}
+              }
+              for(int i=0;i<38;i++){float a=i*2*PI/38;box(world,{std::sin(a)*46,4+float(i%5),std::cos(a)*46},{8,8+float(i%5)*2,6},stone*.65f,a);}
+              uint32_t seed=42;auto rnd=[&](){seed=seed*1664525+1013904223;return float(seed>>8)/16777216;};
+              for(int i=0;i<270;i++){float a=rnd()*2*PI,r=23+rnd()*17;V p{std::sin(a)*r,0,std::cos(a)*r};float h=.12f+rnd()*.48f;box(world,p+V{0,h/2,0},{.25f+rnd()*.8f,h,.4f+rnd()},stone*(.8f+rnd()*.4f),a);}
+              for(int i=0;i<290;i++){float a=rnd()*2*PI,r=10+rnd()*28;V p{std::sin(a)*r,.12f,std::cos(a)*r};box(world,p,{.035f,.25f+rnd()*.35f,.25f},moss,a);}
+              // A ceremonial ring marks the battlefield without obstructing movement.
+              for(int i=0;i<64;i++){float a=i*2*PI/64;box(world,{std::sin(a)*24,.015f,std::cos(a)*24},{1.8f,.025f,.20f},trim*.8f,a);}
+          }
+          void makeScene(){
+              objects=world;
+              float collapse=game.mode==Victory?clamp(game.victoryTime/4,0,1):0;
+              V b=game.boss;float bob=std::sin(game.t*1.5f)*.10f;
+              auto part=[&](V p,V s,V c,float roll=0,float glow=0){p.y=(p.y+bob)*(1-collapse*.90f);p.z-=collapse*p.y*.30f;box(objects,b+p,s,c,0,roll+collapse*.24f,glow);};
+              for(float side:{-1.f,1.f}){
+                  part({side*2.5f,4.4f,0},{2.15f,7.6f,2.15f},stone);
+                  part({side*2.5f,.6f,.55f},{3.5f,1.2f,4.5f},trim);
+                  for(int j=0;j<12;j++){
+                      float y=1.4f+j*.62f,r=j<6?1.35f:1.13f;
+                      for(int k=0;k<8;k++){float a=(k+(j%2)*.5f)*2*PI/8;part({side*2.5f+std::sin(a)*r,y,std::cos(a)*r},{.93f,.56f,.78f},stone*(.9f+.1f*std::sin(j+k)));}
+                  }
+                  part({side*2.5f,5.0f,1.25f},{2.5f,1.6f,.55f},trim);
+                  part({side*2.5f,8.4f,0},{3,.5f,3.4f},trim);
+                  float armWave=std::sin(game.t*1.5f+side)*.12f;
+                  float warning=clamp((game.bossClock-(game.phase==2?3.5f:4.7f))/1.5f,0,1);
+                  float lift=side>0?warning*2.5f:0;
+                  part({side*5.2f,12.2f+lift,-.2f},{2.7f,6,2.8f},stone,side*.22f+armWave);
+                  for(int j=0;j<6;j++)part({side*(6.2f+j*.045f),7.8f+j*.7f+lift,.5f},{3.1f,.62f,3.2f},j%2?stone:trim,side*.12f);
+                  part({side*6.5f,6.6f+lift,.7f},{3.2f,2.4f,3.3f},stone,side*.1f);
+                  part({side*4.6f,15.7f,0},{3.2f,1.2f,4.1f},trim);
+              }
+              for(int j=0;j<10;j++){
+                  float y=8.9f+j*.72f,w=5.4f+j*.27f;
+                  part({0,y,0},{w,.65f,4.8f},stone*(j%2?.95f:1.07f));
+                  for(int k=0;k<5;k++)part({(k-2)*(w/5),y,2.45f},{w/5-.06f,.60f,.25f},k%3?stone:trim*.8f);
+              }
+              part({0,16.1f,0},{9,.6f,5.6f},trim);
+              part({0,17.4f,0},{2.7f,2.4f,2.6f},stone);
+              for(int j=0;j<5;j++)part({0,18.6f+j*.6f,0},{4.3f,.54f,3.5f},stone*(j%2?1:.9f));
+              for(float side:{-1.f,1.f}){
+                  part({side*1.12f,19.75f,1.80f},{.64f,.24f,.12f},cyan,0,1);
+                  part({side*1.65f,21.8f,0},{.68f,1.7f,3.5f},trim);
+              }
+              part({0,21.1f,0},{4.8f,.45f,3.9f},trim);
+              // Luminous climbing route and two rest ledges.
+              for(int j=0;j<32;j++){float y=1+j*.6f,x=y<8?-2.5f*(1-clamp((y-6)/2,0,1)):0,z=y<8?1.98f:(y<16?2.60f:1.83f);part({x,y,z},{.36f,.13f,.16f},moss*1.8f,0,.25f);}
+              part({0,8.5f,2.5f},{4,.23f,2},trim);part({0,15.6f,2.7f},{4,.23f,2},trim);
+              if(game.mode!=Victory){V w=game.weak();float pulse=1+.12f*std::sin(game.t*5);box(objects,w,{.65f*pulse,1.0f*pulse,.12f},cyan,0,PI/4,1);box(objects,w+V{0,0,.1f},{.20f,1.5f,.08f},{.8f,1,.93f},0,0,1);}
+              // Sword attached to the animated right hand, in both color and shadow passes.
+              RM hand=rmult(rt(game.player),rmult(rr({0,game.facing,0}),heroRig.world[11]));
+              auto swordPart=[&](V p,V size,V color){RM r=rmult(hand,rt(p));Mat m;std::memcpy(m.a,r.a,sizeof(m.a));m=mul(m,transform({},size));objects.push_back({m,{color.x,color.y,color.z,0}});};
+              swordPart({0,0,.30f},{.035f,.055f,.74f},{.78f,.85f,.86f});
+              swordPart({0,0,-.06f},{.22f,.065f,.07f},trim);
+              swordPart({0,0,-.14f},{.045f,.05f,.14f},{.20f,.16f,.11f});
+              if(game.shock>=0)for(int i=0;i<96;i++){float a=i*2*PI/96;box(objects,game.shockCenter+V{std::sin(a)*game.shock,.18f,std::cos(a)*game.shock},{std::max(.25f,game.shock*.07f),.19f,.20f},{1,.56f,.21f},a,0,1);}
+              float warn=game.phase==2?3.5f:4.7f;
+              if(game.bossClock>warn&&game.mode==Playing)for(int i=0;i<40;i++){float a=i*2*PI/40;box(objects,game.boss+V{std::sin(a)*7,.045f,std::cos(a)*7},{.75f,.025f,.11f},{1,.38f,.16f},a,0,.7f);}
+              for(auto &q:game.particles)box(objects,q.p,{q.size,q.size,q.size},q.kind?cyan:trim,game.t*2,game.t,q.kind?1:0);
+          }
+
+          #ifndef SCENE_EXPORT
+          GLuint program=0,depthProgram=0,skyProgram=0,vao=0,vertexBuffer=0,instanceBuffer=0,shadowFbo=0,shadowTexture=0;
+          int width=1280,height=720; bool shadows=true; std::string fatal;
+          const char* vertexShader=R"GLSL(#version 300 es
+          precision highp float;
+          layout(location=0) in vec3 position;
+          layout(location=1) in vec3 normal;
+          layout(location=2) in mat4 model;
+          layout(location=6) in vec4 color;
+          uniform mat4 vp; uniform mat4 lightVP;
+          out vec3 pos; out vec3 n; out vec4 col; out vec4 lightPos;
+          void main(){vec4 w=model*vec4(position,1.0);pos=w.xyz;n=normalize(mat3(model)*normal);col=color;lightPos=lightVP*w;gl_Position=vp*w;}
+          )GLSL";
+          const char* fragmentShader=R"GLSL(#version 300 es
+          precision highp float;
+          in vec3 pos;in vec3 n;in vec4 col;in vec4 lightPos;
+          uniform vec3 eye;uniform highp sampler2D shadowMap;uniform int useShadow;
+          out vec4 frag;
+          float hash(vec3 p){p=fract(floor(p)*.1031);p+=dot(p,p.yzx+33.33);return fract((p.x+p.y)*p.z);}
+          void main(){
+           vec3 normal=normalize(n),sun=normalize(vec3(-.55,.85,.4));
+           float lam=max(dot(normal,sun),0.0),visibility=1.0;
+           vec3 sp=lightPos.xyz/lightPos.w*.5+.5;
+           if(useShadow==1&&sp.x>0.0&&sp.x<1.0&&sp.y>0.0&&sp.y<1.0&&sp.z<1.0){float lit=0.0;float bias=max(.0015*(1.0-lam),.0004);for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){float d=texture(shadowMap,sp.xy+vec2(x,y)/1536.0).r;lit+=sp.z-bias<d?1.0:0.0;}visibility=.28+.72*lit/9.0;}
+           float grain=.88+.12*hash(pos*13.0);
+           vec3 base=col.rgb*grain;
+           if(pos.y<.02){float terrainNoise=hash(vec3(pos.x*.65,0,pos.z*.65));base*=.78+terrainNoise*.37;float seam=smoothstep(.02,.06,min(fract(pos.x*.4),fract(pos.z*.4)));base*=.80+.20*seam;}
+           vec3 c=base*(vec3(.25,.31,.34)+vec3(1.0,.88,.66)*lam*visibility*1.05);
+           c=mix(c,col.rgb*(1.15+.15*sin(pos.y*4.0)),clamp(col.a,0.0,1.0));
+           float rim=pow(1.0-max(dot(normal,normalize(eye-pos)),0.0),3.0);c+=vec3(.1,.14,.13)*rim*lam;
+           float fog=1.0-exp(-length(eye-pos)*.009);c=mix(c,vec3(.40,.47,.49),clamp(fog,0.0,.90));
+           c=c/(c+vec3(.65));c=pow(c,vec3(.88));frag=vec4(c,1);
+          }
+          )GLSL";
+          const char* depthFragment=R"GLSL(#version 300 es
+          precision mediump float;
+          void main(){}
+          )GLSL";
+          const char* skyVertex=R"GLSL(#version 300 es
+          out vec2 uv;
+          void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));uv=p;gl_Position=vec4(p*2.0-1.0,0,1);}
+          )GLSL";
+          const char* skyFragment=R"GLSL(#version 300 es
+          precision highp float;
+          in vec2 uv;out vec4 frag;uniform float time;
+          float h(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+          float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
+          void main(){vec2 p=uv*vec2(5,4)+vec2(time*.005,0);float cloud=noise(p)*.55+noise(p*2.1)*.27+noise(p*4.2)*.13;
+           vec3 c=mix(vec3(.65,.65,.55),vec3(.25,.35,.42),smoothstep(.1,1.0,uv.y));
+           c=mix(c,vec3(.72,.70,.60),smoothstep(.35,.75,cloud)*.60);
+           float sun=exp(-length((uv-vec2(.22,.64))*vec2(1.78,1.0))*8.0);c+=vec3(.34,.25,.12)*sun;
+           frag=vec4(c,1);}
+          )GLSL";
+          GLuint shader(GLenum type,const char* code){GLuint s=glCreateShader(type);glShaderSource(s,1,&code,nullptr);glCompileShader(s);GLint ok=0;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);if(!ok){char log[2048];glGetShaderInfoLog(s,sizeof(log),nullptr,log);glDeleteShader(s);throw std::runtime_error(log);}return s;}
+          GLuint link(const char* frag,const char* vert=vertexShader){GLuint v=shader(GL_VERTEX_SHADER,vert),f=shader(GL_FRAGMENT_SHADER,frag),p=glCreateProgram();glAttachShader(p,v);glAttachShader(p,f);glLinkProgram(p);glDeleteShader(v);glDeleteShader(f);GLint ok;glGetProgramiv(p,GL_LINK_STATUS,&ok);if(!ok){char log[2048];glGetProgramInfoLog(p,sizeof(log),nullptr,log);glDeleteProgram(p);throw std::runtime_error(log);}return p;}
+
+          struct SkinVertex {float p[3],n[3],color[3],weights[4],joints[4];};
+          static_assert(sizeof(SkinVertex)==68,"Packed skin vertex required");
+          std::vector<SkinVertex> characterVertices;
+          std::vector<uint32_t> characterIndices;
+          GLuint characterVao=0,characterVbo=0,characterEbo=0,characterProgram=0,characterDepth=0;
+          bool loadCharacter(const void* bytes,size_t length){
+           if(length<16){return false;}
+           uint32_t h[4];std::memcpy(h,bytes,16);
+           if(h[0]!=0x324e4b53||h[3]!=BONES||h[1]>200000||h[2]>1200000||h[1]==0||h[2]==0)return false;
+           size_t expected=16+size_t(h[1])*sizeof(SkinVertex)+size_t(h[2])*4;if(expected!=length)return false;
+           characterVertices.resize(h[1]);characterIndices.resize(h[2]);
+           std::memcpy(characterVertices.data(),(const char*)bytes+16,h[1]*sizeof(SkinVertex));std::memcpy(characterIndices.data(),(const char*)bytes+16+h[1]*sizeof(SkinVertex),h[2]*4);
+           for(auto i:characterIndices)if(i>=h[1])return false;
+           for(const auto&v:characterVertices){float sum=0;for(int i=0;i<4;i++){if(!std::isfinite(v.weights[i])||v.weights[i]<0||!std::isfinite(v.joints[i])||v.joints[i]<0||v.joints[i]>=BONES)return false;sum+=v.weights[i];}if(std::abs(sum-1)>.001f)return false;}
+           return true;
+          }
+          const char* skinVertexShader=R"GLSL(#version 300 es
+          precision highp float;
+          layout(location=0)in vec3 position;layout(location=1)in vec3 normal;
+          layout(location=2)in vec3 color;layout(location=3)in vec4 weights;layout(location=4)in vec4 joints;
+          uniform mat4 vp,lightVP,model,bones[18];
+          out vec3 pos,n;out vec4 col,lightPos;
+          void main(){mat4 skin=bones[int(joints.x)]*weights.x+bones[int(joints.y)]*weights.y+bones[int(joints.z)]*weights.z+bones[int(joints.w)]*weights.w;vec4 w=model*skin*vec4(position,1);pos=w.xyz;n=normalize(mat3(model)*mat3(skin)*normal);col=vec4(color,0);lightPos=lightVP*w;gl_Position=vp*w;}
+          )GLSL";
+          void initCharacter(){
+           if(characterVertices.empty())throw std::runtime_error("Missing or invalid character.skin asset");
+           characterProgram=link(fragmentShader,skinVertexShader);characterDepth=link(depthFragment,skinVertexShader);
+           glGenVertexArrays(1,&characterVao);glBindVertexArray(characterVao);glGenBuffers(1,&characterVbo);glBindBuffer(GL_ARRAY_BUFFER,characterVbo);glBufferData(GL_ARRAY_BUFFER,characterVertices.size()*sizeof(SkinVertex),characterVertices.data(),GL_STATIC_DRAW);
+           glGenBuffers(1,&characterEbo);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,characterEbo);glBufferData(GL_ELEMENT_ARRAY_BUFFER,characterIndices.size()*4,characterIndices.data(),GL_STATIC_DRAW);
+           int sizes[5]={3,3,3,4,4},offsets[5]={0,12,24,36,52};for(int i=0;i<5;i++){glEnableVertexAttribArray(i);glVertexAttribPointer(i,sizes[i],GL_FLOAT,GL_FALSE,sizeof(SkinVertex),(void*)(uintptr_t)offsets[i]);}
+          }
+          void drawCharacter(Mat vp,Mat light,V eye,bool depthOnly){
+           GLuint p=depthOnly?characterDepth:characterProgram;glUseProgram(p);glBindVertexArray(characterVao);
+           Mat model=transform(game.player,{1,1,1},game.facing);
+           glUniformMatrix4fv(glGetUniformLocation(p,"vp"),1,GL_FALSE,vp.a);glUniformMatrix4fv(glGetUniformLocation(p,"lightVP"),1,GL_FALSE,light.a);glUniformMatrix4fv(glGetUniformLocation(p,"model"),1,GL_FALSE,model.a);
+           glUniformMatrix4fv(glGetUniformLocation(p,"bones[0]"),BONES,GL_FALSE,heroRig.skin[0].a);
+           if(!depthOnly){glUniform3f(glGetUniformLocation(p,"eye"),eye.x,eye.y,eye.z);glUniform1i(glGetUniformLocation(p,"useShadow"),shadows?1:0);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,shadowTexture);glUniform1i(glGetUniformLocation(p,"shadowMap"),0);}
+           glDrawElements(GL_TRIANGLES,characterIndices.size(),GL_UNSIGNED_INT,nullptr);
+          }
+
+          void initGL(){
+              fatal.clear();program=link(fragmentShader);depthProgram=link(depthFragment);skyProgram=link(skyFragment,skyVertex);
+              std::vector<float> vertices;
+              for(int axis=0;axis<3;axis++)for(int sign:{-1,1}){
+                  V normal{};(&normal.x)[axis]=float(sign);V u{},v{};(&u.x)[(axis+1)%3]=.5f;(&v.x)[(axis+2)%3]=.5f;
+                  V center=normal*.5f;V c[4]={center-u-v,center+u-v,center+u+v,center-u+v};
+                  for(int idx:{0,1,2,0,2,3}){V a=c[idx];vertices.insert(vertices.end(),{a.x,a.y,a.z,normal.x,normal.y,normal.z});}
+              }
+              glGenVertexArrays(1,&vao);glBindVertexArray(vao);glGenBuffers(1,&vertexBuffer);glBindBuffer(GL_ARRAY_BUFFER,vertexBuffer);glBufferData(GL_ARRAY_BUFFER,vertices.size()*sizeof(float),vertices.data(),GL_STATIC_DRAW);
+              for(int i=0;i<2;i++){glEnableVertexAttribArray(i);glVertexAttribPointer(i,3,GL_FLOAT,GL_FALSE,6*sizeof(float),(void*)(uintptr_t)(i*3*sizeof(float)));}
+              glGenBuffers(1,&instanceBuffer);glBindBuffer(GL_ARRAY_BUFFER,instanceBuffer);
+              for(int i=0;i<5;i++){glEnableVertexAttribArray(i+2);glVertexAttribPointer(i+2,4,GL_FLOAT,GL_FALSE,sizeof(Instance),(void*)(uintptr_t)(i*4*sizeof(float)));glVertexAttribDivisor(i+2,1);}
+              glGenTextures(1,&shadowTexture);glBindTexture(GL_TEXTURE_2D,shadowTexture);glTexImage2D(GL_TEXTURE_2D,0,GL_DEPTH_COMPONENT24,1536,1536,0,GL_DEPTH_COMPONENT,GL_UNSIGNED_INT,nullptr);
+              glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+              glGenFramebuffers(1,&shadowFbo);glBindFramebuffer(GL_FRAMEBUFFER,shadowFbo);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_TEXTURE_2D,shadowTexture,0);GLenum none=GL_NONE;glDrawBuffers(1,&none);glReadBuffer(GL_NONE);
+              shadows=glCheckFramebufferStatus(GL_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE;glBindFramebuffer(GL_FRAMEBUFFER,0);
+              glEnable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);makeWorld();initCharacter();glBindVertexArray(vao);
+          }
+          void draw(){
+              if(!fatal.empty()){glClearColor(.3f,.05f,.04f,1);glClear(GL_COLOR_BUFFER_BIT);return;}
+              makeScene();glBindVertexArray(vao);glBindBuffer(GL_ARRAY_BUFFER,instanceBuffer);glBufferData(GL_ARRAY_BUFFER,objects.size()*sizeof(Instance),objects.data(),GL_DYNAMIC_DRAW);
+              V target=game.player+V{0,game.climbing?1.8f:2.5f,0};float radius=game.climbing?5.5f:6.5f;
+              if(game.mode==Title){target={-7,9,-1};radius=36;}
+              float viewPitch=game.mode==Title?.22f:game.pitch;
+              V eye=target+V{std::sin(game.yaw)*radius*std::cos(viewPitch),radius*std::sin(viewPitch),std::cos(game.yaw)*radius*std::cos(viewPitch)};
+              // Keep the orbit outside columns, below lintels and above ground.
+              for(auto&o:game.obstacles){V ray=eye-target;for(int i=1;i<=12;i++){V q=target+ray*(i/12.f);if(q.y<o.h+1&&distanceXZ(q,o.p)<o.r+1){eye=target+ray*(std::max(1,i-1)/12.f);break;}}}
+              eye.y=std::max(eye.y,1.0f);
+              Mat light=mul(ortho(43),lookAt({-38,65,34},{0,0,0}));
+              if(shadows){glBindFramebuffer(GL_FRAMEBUFFER,shadowFbo);glViewport(0,0,1536,1536);glClear(GL_DEPTH_BUFFER_BIT);glUseProgram(depthProgram);glUniformMatrix4fv(glGetUniformLocation(depthProgram,"vp"),1,GL_FALSE,light.a);glDrawArraysInstanced(GL_TRIANGLES,0,36,objects.size());drawCharacter(light,light,eye,true);glBindVertexArray(vao);}
+              glBindFramebuffer(GL_FRAMEBUFFER,0);glViewport(0,0,width,height);glClearColor(.40f,.47f,.49f,1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+              glDisable(GL_DEPTH_TEST);glUseProgram(skyProgram);glUniform1f(glGetUniformLocation(skyProgram,"time"),game.t);glDrawArrays(GL_TRIANGLES,0,3);glEnable(GL_DEPTH_TEST);glUseProgram(program);
+              Mat vp=mul(perspective(float(width)/std::max(1,height)),lookAt(eye,target));glUniformMatrix4fv(glGetUniformLocation(program,"vp"),1,GL_FALSE,vp.a);glUniformMatrix4fv(glGetUniformLocation(program,"lightVP"),1,GL_FALSE,light.a);
+              glUniform3f(glGetUniformLocation(program,"eye"),eye.x,eye.y,eye.z);glUniform1i(glGetUniformLocation(program,"useShadow"),shadows?1:0);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,shadowTexture);glUniform1i(glGetUniformLocation(program,"shadowMap"),0);glDrawArraysInstanced(GL_TRIANGLES,0,36,objects.size());drawCharacter(vp,light,eye,false);
+          }
+          extern "C" JNIEXPORT jboolean JNICALL Java_com_aurora_colosso_MainActivity_nLoad(JNIEnv*env,jclass,jbyteArray data){
+           auto size=env->GetArrayLength(data);auto bytes=env->GetByteArrayElements(data,nullptr);if(!bytes)return false;
+           bool ok=loadCharacter(bytes,size);env->ReleaseByteArrayElements(data,bytes,JNI_ABORT);return ok;
+          }
+          extern "C" JNIEXPORT void JNICALL Java_com_aurora_colosso_MainActivity_nInit(JNIEnv*,jclass){try{initGL();}catch(const std::exception&e){fatal=e.what();__android_log_print(ANDROID_LOG_ERROR,"Colosso","%s",e.what());}}
+          extern "C" JNIEXPORT void JNICALL Java_com_aurora_colosso_MainActivity_nResize(JNIEnv*,jclass,jint w,jint h){width=w;height=h;}
+          extern "C" JNIEXPORT void JNICALL Java_com_aurora_colosso_MainActivity_nPause(JNIEnv*,jclass){if(game.mode==Playing)game.mode=Paused;}
+          extern "C" JNIEXPORT void JNICALL Java_com_aurora_colosso_MainActivity_nFrame(JNIEnv*env,jclass,jfloat dt,jfloat x,jfloat y,jfloat lx,jfloat ly,jint buttons,jfloatArray output){
+              float remain=clamp(dt,0,.1f);bool first=true;while(remain>.00001f){float step=std::min(remain,1.f/120);game.step(step,{x,y,first?lx:0,first?ly:0,first?unsigned(buttons):0});remain-=step;first=false;}
+              if(buttons&Reset){heroRig=Rig();}
+              heroRig.update(game,clamp(dt,0,.1f));
+              draw();float result[16]={float(game.mode),game.hp,game.stamina,game.bossHealth(),float(game.phase),float(game.hits),game.climbing?1.f:0.f,game.player.y,game.bossClock,game.shakeClock,float(game.events),game.elapsed,game.flash,game.resting()?1.f:0.f,fatal.empty()?0.f:1.f,float(objects.size())};game.events=0;env->SetFloatArrayRegion(output,0,16,result);
+          }
+          #else
+          #include <iostream>
+          int main(){makeWorld();makeScene();std::cout<<objects.size()<<'\n';for(auto&o:objects){for(float x:o.model.a)std::cout<<x<<' ';for(float x:o.color)std::cout<<x<<' ';std::cout<<'\n';}}
+          #endif
+          ''',
+          'app/src/main/cpp/rig.hpp': r'''#pragma once
+          #include "game.hpp"
+          #include <array>
+          namespace cc {
+          struct RM{float a[16]{};};
+          inline RM rid(){RM m;for(int i=0;i<4;i++)m.a[i*5]=1;return m;}
+          inline RM rmult(RM a,RM b){RM c;for(int i=0;i<4;i++)for(int j=0;j<4;j++)for(int k=0;k<4;k++)c.a[i*4+j]+=a.a[k*4+j]*b.a[i*4+k];return c;}
+          inline RM rt(V p){RM m=rid();m.a[12]=p.x;m.a[13]=p.y;m.a[14]=p.z;return m;}
+          inline RM rr(V r){RM x=rid(),y=rid(),z=rid();x.a[5]=x.a[10]=std::cos(r.x);x.a[6]=std::sin(r.x);x.a[9]=-std::sin(r.x);y.a[0]=y.a[10]=std::cos(r.y);y.a[2]=-std::sin(r.y);y.a[8]=std::sin(r.y);z.a[0]=z.a[5]=std::cos(r.z);z.a[1]=std::sin(r.z);z.a[4]=-std::sin(r.z);return rmult(y,rmult(x,z));}
+          inline V rp(RM m,V p){return{m.a[0]*p.x+m.a[4]*p.y+m.a[8]*p.z+m.a[12],m.a[1]*p.x+m.a[5]*p.y+m.a[9]*p.z+m.a[13],m.a[2]*p.x+m.a[6]*p.y+m.a[10]*p.z+m.a[14]};}
+          constexpr int BONES=18;
+          inline constexpr int parents[BONES]={-1,0,1,2,3,4,3,6,7,3,9,10,1,12,13,1,15,16};
+          inline constexpr V bind[BONES]={{0,0,0},{0,.91f,0},{0,1.08f,0},{0,1.27f,0},{0,1.41f,0},{0,1.52f,0},{-.162f,1.324f,0},{-.246f,1.135f,.004f},{-.30f,.957f,.025f},{.162f,1.324f,0},{.246f,1.135f,.004f},{.30f,.957f,.025f},{-.079f,.89f,-.005f},{-.10f,.515f,.01f},{-.098f,.10f,-.003f},{.079f,.89f,-.005f},{.10f,.515f,.01f},{.098f,.10f,-.003f}};
+          struct Rig {
+           std::array<V,BONES> angles{};
+           std::array<RM,BONES> world{},skin{};
+           float cycle=0,bob=0,land=0;bool wasAir=false;int state=0;
+           void solve(){for(int i=0;i<BONES;i++){V local=parents[i]<0?bind[i]:bind[i]-bind[parents[i]];if(i==0)local.y+=bob;RM m=rmult(rt(local),rr(angles[i]));world[i]=parents[i]<0?m:rmult(world[parents[i]],m);skin[i]=rmult(world[i],rt(bind[i]*-1));}}
+           Rig(){solve();}
+           void update(const Game&g,float dt){
+            if(g.mode==Paused)return;
+            std::array<V,BONES> goal{};float speed=length({g.velocity.x,0,g.velocity.z}),run=clamp(speed/6.8f,0,1),offset=0;
+            cycle+=dt*speed*2.3f;float s=std::sin(cycle),q=std::cos(cycle);
+            state=0;goal[2].x=.012f*std::sin(g.t*2.1f);goal[4].y=.025f*std::sin(g.t*.65f);
+            goal[6].z=.18f;goal[9].z=-.18f;goal[7].x=goal[10].x=-.12f;
+            if(run>.05f&&!g.climbing){state=1;goal[12].x=-.68f*s*run;goal[15].x=.68f*s*run;goal[13].x=.90f*std::max(0.f,s)*run;goal[16].x=.90f*std::max(0.f,-s)*run;goal[14].x=-.20f*q*run;goal[17].x=.20f*q*run;goal[6].x=.55f*s*run;goal[9].x=-.55f*s*run;goal[7].x=goal[10].x=-.55f*run;goal[2].y=.08f*s*run;goal[3].y=-.10f*s*run;offset=.023f*std::abs(q)*run;}
+            bool air=g.player.y>.025f&&!g.climbing;
+            if(air){state=g.velocity.y>0?2:3;goal[12].x=-.4f;goal[15].x=-.18f;goal[13].x=.72f;goal[16].x=.40f;goal[6].x=goal[9].x=-.38f;goal[6].z=.5f;goal[9].z=-.5f;goal[7].x=goal[10].x=-.65f;}
+            if(wasAir&&!air){land=.20f;}
+            wasAir=air;land=std::max(0.f,land-dt);
+            if(land>0){state=4;float a=land/.2f;goal[12].x=goal[15].x=-.25f*a;goal[13].x=goal[16].x=.5f*a;offset=-.055f*a;}
+            if(g.climbing){state=5;float a=std::sin(g.player.y*4);goal[6].x=-2.45f+.3f*a;goal[9].x=-2.45f-.3f*a;goal[6].z=.1f;goal[9].z=-.1f;goal[7].x=-.38f;goal[10].x=-.38f;goal[12].x=-.62f-.22f*a;goal[15].x=-.62f+.22f*a;goal[13].x=.95f+.2f*a;goal[16].x=.95f-.2f*a;goal[2].x=-.08f;offset=0;}
+            if(g.dodgeTime>0){state=6;goal[2].x=.40f;goal[12].x=-.65f;goal[15].x=.35f;goal[13].x=1.2f;goal[16].x=.7f;goal[6].x=.6f;goal[9].x=.6f;offset=-.15f;}
+            if(g.attackAnim>0){state=7;float a=1-g.attackAnim/.42f;float stroke=std::sin(a*PI);goal[9].x=-2.0f+2.2f*a;goal[9].y=-.5f+stroke;goal[10].x=-.65f+.5f*a;goal[3].y=-.30f+.65f*a;goal[11].x=-.15f;}
+            if(g.flash>.20f){goal[2].x-=.15f;goal[4].x-=.1f;}
+            if(g.mode==Victory){state=8;goal[9].x=-2.7f;goal[10].x=-.4f;goal[6].x=-.2f;goal[5].x=-.1f;}
+            if(g.mode==Defeat){state=9;goal[0].z=-1.45f;goal[2].x=.25f;goal[13].x=.8f;goal[16].x=.3f;offset=.12f;}
+            float k=1-std::exp(-dt*(g.attackAnim>0?25.f:13.f));for(int i=0;i<BONES;i++)angles[i]=angles[i]+(goal[i]-angles[i])*k;bob+=(offset-bob)*k;solve();
+           }
+          };
+          }
+          ''',
+          'app/src/main/java/com/aurora/colosso/MainActivity.java': r'''package com.aurora.colosso;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.graphics.*;
+          import android.opengl.GLSurfaceView;
+          import android.view.*;
+          import android.widget.FrameLayout;
+          import android.media.*;
+          import java.io.*;
+          import java.nio.*;
+          import javax.microedition.khronos.egl.EGLConfig;
+          import javax.microedition.khronos.opengles.GL10;
+
+          /** Android lifecycle, touch, accessible text HUD and synthesized sound.
+           * Simulation, physics, world generation and rendering live in C++17. */
+          public final class MainActivity extends Activity {
+              static { System.loadLibrary("colosso"); }
+              static native void nInit();
+              static native boolean nLoad(byte[] data);
+              static native void nResize(int w,int h);
+              static native void nFrame(float dt,float x,float y,float lx,float ly,int buttons,float[] state);
+              static native void nPause();
+              GLSurfaceView gl; Hud hud; Sound sound;
+              final Controls controls=new Controls();
+              volatile float[] state=new float[16];
+              volatile boolean muted=false;
+              static final class Controls {
+                  float x,y,lx,ly; int buttons;
+                  synchronized float[] take(){float[] a={x,y,lx,ly,buttons};lx=ly=0;buttons=0;return a;}
+                  synchronized void press(int b){buttons|=b;}
+                  synchronized void move(float a,float b){x=a;y=b;}
+                  synchronized void look(float a,float b){lx+=a;ly+=b;}
+                  synchronized void clear(){x=y=lx=ly=0;buttons=0;}
+              }
+              @Override public void onCreate(Bundle b){
+                  super.onCreate(b);
+                  if(getIntent().getBooleanExtra("autostart",false))controls.press(16);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                  immersive();sound=new Sound();
+                  try(InputStream input=getAssets().open("character.skin");ByteArrayOutputStream output=new ByteArrayOutputStream()){
+                      byte[] buffer=new byte[16384];int count;while((count=input.read(buffer))!=-1)output.write(buffer,0,count);
+                      if(!nLoad(output.toByteArray()))throw new IOException("Invalid character skin asset");
+                  }catch(IOException e){throw new IllegalStateException("Character asset could not be loaded",e);}
+                  gl=new GLSurfaceView(this);gl.setEGLContextClientVersion(3);
+                  gl.setEGLConfigChooser(8,8,8,0,24,0);gl.setPreserveEGLContextOnPause(true);
+                  gl.setRenderer(new GLSurfaceView.Renderer(){
+                      long previous; boolean reported=false; final float[] out=new float[16];
+                      public void onSurfaceCreated(GL10 ignored,EGLConfig config){nInit();previous=System.nanoTime();}
+                      public void onSurfaceChanged(GL10 ignored,int w,int h){nResize(w,h);}
+                      public void onDrawFrame(GL10 ignored){
+                          long now=System.nanoTime();float dt=Math.min(.1f,Math.max(.0001f,(now-previous)*1e-9f));previous=now;
+                          float[] a=controls.take();nFrame(dt,a[0],a[1],a[2],a[3],(int)a[4],out);state=out.clone();
+                          if(!reported&&out[14]==0){android.util.Log.i("Colosso","RENDER_OK mode="+(int)out[0]+" rig=18");reported=true;}
+                          if(!muted)sound.events((int)out[10]);
+                      }
+                  });
+                  FrameLayout layout=new FrameLayout(this);layout.addView(gl);hud=new Hud();layout.addView(hud);setContentView(layout);
+              }
+              void immersive(){getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_LAYOUT_STABLE);}
+              @Override public void onWindowFocusChanged(boolean focus){super.onWindowFocusChanged(focus);if(focus)immersive();}
+              @Override protected void onPause(){controls.clear();hud.clearPointers();gl.queueEvent(()->nPause());gl.onPause();sound.pause();super.onPause();}
+              @Override protected void onResume(){super.onResume();if(gl!=null)gl.onResume();if(sound!=null&&!muted)sound.resume();}
+              @Override protected void onDestroy(){sound.close();super.onDestroy();}
+              @Override public void onBackPressed(){if((int)state[0]==0)finish();else controls.press(32);}
+
+              final class Hud extends View {
+                  final Paint p=new Paint(3);final int cream=Color.rgb(234,228,207),aqua=Color.rgb(131,226,211),dark=Color.rgb(15,27,32);
+                  float scale=1,ox=0,oy=0;int joystick=-1,camera=-1;float camX,camY,jx,jy;
+                  Hud(){super(MainActivity.this);setLayerType(View.LAYER_TYPE_SOFTWARE,null);setContentDescription("Colosso Cinzas. Joystick à esquerda. Câmera ao arrastar à direita. Botões de atacar, pular, agarrar e esquivar.");}
+                  void clearPointers(){joystick=camera=-1;jx=jy=0;}
+                  void color(int c){p.setColor(c);p.setStyle(Paint.Style.FILL);p.setShader(null);}
+                  void text(Canvas c,String s,float x,float y,float size,int col){color(col);p.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));p.setTextSize(size);c.drawText(s,x,y,p);}
+                  void spaced(Canvas c,String s,float x,float y,float size,int col,float gap){color(col);p.setTypeface(Typeface.create("sans-serif-medium",0));p.setTextSize(size);for(char ch:s.toCharArray()){String t=String.valueOf(ch);c.drawText(t,x,y,p);x+=p.measureText(t)+gap;}}
+                  void rect(Canvas c,float x,float y,float w,float h,int col){color(col);c.drawRoundRect(x,y,x+w,y+h,6,6,p);}
+                  void line(Canvas c,float x,float y,float xx,float yy,int col,float width){color(col);p.setStrokeWidth(width);c.drawLine(x,y,xx,yy,p);}
+                  void bar(Canvas c,float x,float y,float w,float amount,int col){rect(c,x,y,w,7,0x70424e4d);rect(c,x,y,w*Math.max(0,Math.min(1,amount)),7,col);}
+                  void centered(Canvas c,String s,float x,float y,float size,int col){p.setTypeface(Typeface.create("sans-serif",0));p.setTextSize(size);text(c,s,x-p.measureText(s)/2,y,size,col);}
+                  void button(Canvas c,float x,float y,float r,String label,String glyph,int col){
+                      color(0x9a14272c);c.drawCircle(x,y,r,p);color(col);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.6f);c.drawCircle(x,y,r,p);p.setStyle(Paint.Style.FILL);
+                      centered(c,glyph,x,y+7,25,col);centered(c,label,x,y+r+20,12,cream);
+                  }
+                  @Override protected void onDraw(Canvas c){
+                      super.onDraw(c);float[] s=state;int mode=(int)s[0];
+                      scale=Math.min(getWidth()/1280f,getHeight()/720f);ox=(getWidth()-1280*scale)/2;oy=(getHeight()-720*scale)/2;
+                      c.save();c.translate(ox,oy);c.scale(scale,scale);
+                      color(Color.WHITE);p.setShader(new LinearGradient(0,0,0,200,new int[]{0xd5101b20,0x00101b20},null,Shader.TileMode.CLAMP));c.drawRect(0,0,1280,200,p);p.setShader(null);
+                      if(mode==0){title(c);}
+                      else {
+                          spaced(c,"CINZAS DO VALE",38,40,14,cream,3);
+                          text(c,"VIDA",38,73,10,cream);bar(c,86,65,160,s[1]/100,0xffdc8b73);
+                          text(c,"FÔLEGO",38,96,10,cream);bar(c,86,88,160,s[2]/100,aqua);
+                          centered(c,"O GUARDIÃO DAS RUÍNAS",640,35,15,cream);
+                          bar(c,455,50,370,s[3],aqua);
+                          for(int i=0;i<3;i++){color(i<(int)s[4]?aqua:0xff75857e);c.drawCircle(619+i*21,73,3,p);}
+                          text(c,muted?"SOM OFF":"SOM ON",1080,39,12,cream);text(c,"II  PAUSA",1170,39,12,cream);
+                          String objective=(int)s[4]==0?"01 / Quebre o selo na perna esquerda":((int)s[4]==1?"02 / Escale até o selo do peito":"03 / Alcance a cabeça e destrua o último selo");
+                          text(c,objective,38,138,17,cream);
+                          if(s[6]>0){
+                              text(c,"ALTURA  "+(int)s[7]+" m",38,169,12,aqua);
+                              if(s[9]>6)centered(c,"ELE VAI SE SACUDIR — SOLTE O JOYSTICK",640,150,18,0xffffc685);
+                              else if(s[13]>0)centered(c,"APOIO SEGURO • Pare para recuperar fôlego",640,150,17,aqua);
+                              else text(c,"Joystick para cima: subir  •  AGARRAR: soltar",38,192,13,cream);
+                          }else if(s[8]>(s[4]==2?3.5f:4.7f))centered(c,"PISÃO IMINENTE • Pule a onda ou esquive",640,150,18,0xffffc685);
+                          if(mode==1){
+                              color(0x50132227);c.drawCircle(145,569,77,p);color(0x95748e8a);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1);c.drawCircle(145,569,77,p);c.drawCircle(145,569,45,p);p.setStyle(Paint.Style.FILL);color(0xbbd2ded1);c.drawCircle(145+jx*52,569-jy*52,25,p);
+                              centered(c,s[6]>0?"SUBIR / DESCER":"MOVER",145,678,11,cream);
+                              button(c,1160,541,47,"ATACAR","╱",aqua);
+                              button(c,1054,612,35,"PULAR","↑",cream);
+                              button(c,1150,663,29,s[6]>0?"SOLTAR":"AGARRAR","◇",cream);
+                              button(c,951,642,32,"ESQUIVAR","»",cream);
+                              centered(c,"ARRASTE À DIREITA PARA GIRAR A CÂMERA",690,688,10,0xaadcdcca);
+                              if(s[11]<15){rect(c,364,561,494,69,0xc515292f);centered(c,"Aproxime-se do brilho e toque ATACAR.",611,588,16,cream);centered(c,"AGARRAR perto do gigante inicia a escalada.",611,613,14,aqua);}
+                          }
+                          if(s[12]>0){color(((int)(s[12]*110)<<24)|0x00933125);c.drawRect(0,0,1280,720,p);}
+                          if(mode==2||mode==3||mode==4)overlay(c,mode,s);
+                      }
+                      if(s[14]>0){rect(c,150,280,980,160,0xff18272e);centered(c,"Não foi possível iniciar o renderizador OpenGL ES 3.",640,335,22,cream);centered(c,"Consulte o log do Android com a tag Colosso.",640,382,17,cream);}
+                      c.restore();postInvalidateOnAnimation();
+                  }
+                  void title(Canvas c){
+                      color(Color.WHITE);p.setShader(new LinearGradient(0,0,800,0,new int[]{0xef101d24,0x00101d24},null,Shader.TileMode.CLAMP));c.drawRect(0,0,1000,720,p);p.setShader(null);
+                      spaced(c,"U M A  J O R N A D A  O R I G I N A L",64,98,11,aqua,1.2f);
+                      p.setColor(cream);p.setTypeface(Typeface.create("serif",0));p.setTextSize(77);c.drawText("COLOSSO",58,204,p);
+                      spaced(c,"C I N Z A S   D O   V A L E",64,246,17,cream,1.6f);
+                      line(c,64,276,174,276,aqua,2);
+                      text(c,"Entre as ruínas, um guardião ainda respira.",64,329,18,cream);
+                      text(c,"Encontre seus selos. Escale. Sobreviva.",64,359,18,cream);
+                      text(c,"01   Mova-se com o joystick; arraste para olhar.",64,418,14,cream);
+                      text(c,"02   Salte ou esquive das ondas de impacto.",64,448,14,cream);
+                      text(c,"03   Agarre, suba e ataque os três selos luminosos.",64,478,14,cream);
+                      rect(c,64,537,325,62,aqua);spaced(c,"INICIAR JORNADA",103,575,16,dark,2);
+                      text(c,"C++ / OPENGL ES 3     •     EXPERIÊNCIA OFFLINE",64,664,11,cream);
+                  }
+                  void overlay(Canvas c,int mode,float[] s){
+                      color(0xd90b181e);c.drawRect(0,0,1280,720,p);
+                      spaced(c,mode==3?"O VALE VOLTA A RESPIRAR":"CINZAS DO VALE",443,221,13,aqua,3);
+                      centered(c,mode==2?"Jornada suspensa":mode==3?"Guardião derrotado":"Sua jornada não termina aqui",640,304,39,cream);
+                      String sub=mode==2?"Recupere o fôlego. O vale pode esperar.":mode==3?"Três selos destruídos • "+(int)s[11]+" segundos":"Evite os pisões e descanse nos apoios durante a escalada.";
+                      centered(c,sub,640,354,17,cream);
+                      rect(c,465,414,350,62,aqua);centered(c,mode==2?"CONTINUAR":"JOGAR NOVAMENTE",640,453,17,dark);
+                      if(mode==2)centered(c,"REINICIAR JORNADA",640,526,14,cream);
+                  }
+                  boolean near(float x,float y,float a,float b,float r){return Math.hypot(x-a,y-b)<r;}
+                  @Override public boolean onTouchEvent(android.view.MotionEvent e){
+                      int action=e.getActionMasked(),idx=e.getActionIndex(),id=e.getPointerId(idx),mode=(int)state[0];
+                      float x=(e.getX(idx)-ox)/scale,y=(e.getY(idx)-oy)/scale;
+                      if(action==MotionEvent.ACTION_DOWN||action==MotionEvent.ACTION_POINTER_DOWN){
+                          if(mode==0){if(x>=64&&x<=389&&y>=537&&y<=599){controls.press(16);sound.resume();}return true;}
+                          if(mode!=1){if(x>465&&x<815&&y>414&&y<476)controls.press(mode==2?16:64);if(mode==2&&x>460&&x<820&&y>490&&y<550)controls.press(64);return true;}
+                          if(y<65&&x>1160){controls.press(32);controls.move(0,0);clearPointers();return true;}
+                          if(y<65&&x>1060){muted=!muted;if(muted)sound.pause();else sound.resume();return true;}
+                          if(near(x,y,1160,541,60)){controls.press(2);performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);return true;}
+                          if(near(x,y,1054,612,45)){controls.press(1);return true;}
+                          if(near(x,y,1150,663,41)){controls.press(4);return true;}
+                          if(near(x,y,951,642,42)){controls.press(8);return true;}
+                          if(x<310&&y>370&&joystick<0){joystick=id;updateStick(x,y);return true;}
+                          if(x>320&&camera<0){camera=id;camX=x;camY=y;}
+                      }else if(action==MotionEvent.ACTION_MOVE){
+                          for(int i=0;i<e.getPointerCount();i++){int pointer=e.getPointerId(i);float xx=(e.getX(i)-ox)/scale,yy=(e.getY(i)-oy)/scale;
+                              if(pointer==joystick)updateStick(xx,yy);
+                              if(pointer==camera){controls.look((xx-camX)*.005f,(yy-camY)*.004f);camX=xx;camY=yy;}
+                          }
+                      }else if(action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_POINTER_UP){if(id==joystick){joystick=-1;jx=jy=0;controls.move(0,0);}if(id==camera)camera=-1;}
+                      else if(action==MotionEvent.ACTION_CANCEL){clearPointers();controls.clear();}
+                      return true;
+                  }
+                  void updateStick(float x,float y){jx=(x-145)/65;jy=(569-y)/65;float d=(float)Math.hypot(jx,jy);if(d>1){jx/=d;jy/=d;}if(d<.12f)jx=jy=0;controls.move(jx,jy);}
+              }
+
+              final class Sound {
+                  final SoundPool pool; final int[] sounds=new int[6];int ambient=0;boolean loaded=false,paused=true;
+                  Sound(){pool=new SoundPool.Builder().setMaxStreams(6).setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()).build();
+                      pool.setOnLoadCompleteListener((p,id,status)->{if(status==0&&id==sounds[5]){loaded=true;if(!paused&&!muted)resume();}});
+                      try{for(int i=0;i<6;i++)sounds[i]=pool.load(wave(i).getAbsolutePath(),1);}catch(IOException ignored){}
+                  }
+                  File wave(int kind)throws IOException{
+                      int rate=22050,n=(int)(rate*(kind==5?6.0:kind==3?1.7:.40));ByteBuffer b=ByteBuffer.allocate(44+n*2).order(ByteOrder.LITTLE_ENDIAN);
+                      b.put(new byte[]{'R','I','F','F'}).putInt(36+n*2).put(new byte[]{'W','A','V','E','f','m','t',' '}).putInt(16).putShort((short)1).putShort((short)1).putInt(rate).putInt(rate*2).putShort((short)2).putShort((short)16).put(new byte[]{'d','a','t','a'}).putInt(n*2);
+                      java.util.Random random=new java.util.Random(20+kind);
+                      for(int i=0;i<n;i++){double t=i/(double)rate,u=i/(double)n,v;
+                          if(kind==5)v=(Math.sin(2*Math.PI*55*t)+.5*Math.sin(2*Math.PI*82.5*t)+.3*Math.sin(2*Math.PI*110*t))*.075*Math.pow(Math.sin(Math.PI*u),2);
+                          else {double f=kind==0?680:kind==1?90:kind==2?45:kind==3?440:330;v=(Math.sin(2*Math.PI*f*t*(kind==3?1:1-u*.4))*.7+(random.nextDouble()*2-1)*(kind==2?.8:.2))*Math.exp(-u*6)*.45;}
+                          b.putShort((short)(Math.max(-1,Math.min(1,v))*25000));
+                      }
+                      File file=new File(getCacheDir(),"tone"+kind+".wav");try(FileOutputStream out=new FileOutputStream(file)){out.write(b.array());}return file;
+                  }
+                  synchronized void events(int bits){if(paused||muted)return;for(int i=0;i<5;i++)if((bits&(1<<i))!=0)pool.play(sounds[i],.7f,.7f,1,0,1);}
+                  synchronized void pause(){paused=true;pool.autoPause();}
+                  synchronized void resume(){paused=false;if(loaded){pool.autoResume();if(ambient==0)ambient=pool.play(sounds[5],.35f,.35f,0,-1,1);}}
+                  synchronized void close(){pool.release();}
+              }
+          }
+          ''',
+          'app/src/main/res/drawable/icon.xml': r'''<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108"><path android:fillColor="#13262d" android:pathData="M0,0h108v108h-108z"/><path android:fillColor="#baa987" android:pathData="M35,32h38v12h13v29h-12v-15h-6v34h-12v-23h-4v23h-12v-34h-6v15h-12v-29h13z"/><path android:fillColor="#93fbe9" android:pathData="M50,17h8v16h-8zM46,45h16v5h-16z"/></vector>
+          ''',
+          'app/src/main/res/values/styles.xml': r'''<resources><style name="GameTheme" parent="android:style/Theme.Material.NoActionBar"><item name="android:fontFamily">sans</item><item name="android:windowFullscreen">true</item><item name="android:windowActionModeOverlay">true</item><item name="android:colorAccent">#89ddd2</item><item name="android:windowLightNavigationBar">false</item><item name="android:windowLayoutInDisplayCutoutMode">never</item><item name="android:windowBackground">#111c23</item></style></resources>
+          ''',
+          'build.gradle': r'''plugins { id 'com.android.application' version '8.7.3' apply false }
+          ''',
+          'gradle.properties': r'''org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
+          android.useAndroidX=false
+          android.nonTransitiveRClass=true
+          ''',
+          'settings.gradle': r'''pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+          rootProject.name = 'ColossoCinzas'
+          include ':app'
+          ''',
+          'tests/game_test.cpp': r'''#include "../app/src/main/cpp/game.hpp"
+          #include <cassert>
+          #include <iostream>
+          using namespace cc;
+          void advance(Game&g,float sec,Input in={}){for(int i=0;i<int(sec*120);i++)g.step(1.f/120,in);}
+          int main(){
+              {Game g;g.step(.01f,{0,0,0,0,Start});assert(g.mode==Playing);g.step(.01f,{0,0,0,0,Jump});assert(g.velocity.y>8);advance(g,1.2f);assert(g.player.y==0);assert(g.hp==100);}
+              {Game g;g.mode=Playing;V p=g.player;g.step(.01f,{0,0,0,0,Pause});advance(g,1,{1,1});assert(distanceXZ(p,g.player)==0&&g.mode==Paused);g.step(.01f,{0,0,0,0,Pause});assert(g.mode==Playing);}
+              {Game g;g.mode=Playing;g.player={0,0,37};advance(g,3,{0,-1});assert(distanceXZ(g.player,{})<=38.001f);}
+              {Game g;g.mode=Playing;g.player=g.obstacles[0].p+V{0,0,3};advance(g,1,{0,1});assert(distanceXZ(g.player,g.obstacles[0].p)>=g.obstacles[0].r+.399f);}
+              {Game g;g.mode=Playing;g.player=g.boss+V{-2.5f,0,4};g.step(.01f,{0,0,0,0,Grab});assert(g.climbing);advance(g,2,{0,1});assert(g.player.y>6&&g.player.y<7&&g.stamina<100);g.player.y=8.5f;float before=g.stamina;advance(g,.3f);assert(g.stamina>before);g.stamina=.01f;g.step(.02f,{0,1});assert(!g.climbing);}
+              {Game g;g.mode=Playing;g.player={0,0,10};g.shock=12;g.shockCenter={};g.step(.1f); /* already passed: no hit */ assert(g.hp==100);g.shock=9;g.step(.01f);assert(g.hp==76);g.shockHit=false;g.shock=9;g.step(.01f);assert(g.hp==76);}
+              {Game g;g.mode=Playing;g.player={0,0,10};g.step(.01f,{0,0,0,0,Dodge});g.shock=9;g.shockCenter={};g.step(.01f);assert(g.hp==100&&g.invulnerable>0);}
+              {Game a,b;a.mode=b.mode=Playing;for(int i=0;i<240;i++)a.step(1.f/120,{.5f,1});for(int i=0;i<120;i++)b.step(1.f/60,{.5f,1});assert(distanceXZ(a.player,b.player)<.09f);}
+              {Game g;g.mode=Playing;g.hurt(200);assert(g.mode==Defeat);g.step(.01f,{0,0,0,0,Reset});assert(g.mode==Playing&&g.hp==100&&g.phase==0);}
+              // End-to-end: actual movement from spawn, break ankle, grab, climb,
+              // rest during shakes, break chest and crown. No position/health cheats.
+              {Game g;g.step(1.f/120,{0,0,0,0,Start});
+                  for(int frame=0;frame<120*180&&g.mode==Playing;frame++){
+                      Input in;V target=g.weak();
+                      if(!g.climbing){target.z+=.5f;V d=target-g.player;in.x=clamp(d.x,-1,1);in.y=clamp(-d.z,-1,1);
+                          if(length(g.player+V{0,1.1f,0}-g.weak())<2.4f&&g.phase==0)in.buttons|=Attack;
+                          if(g.phase>0)in.buttons|=Grab;
+                          if(g.shock>=0&&distanceXZ(g.player,g.shockCenter)-g.shock<5)in.buttons|=Jump;
+                      }else{
+                          float delta=g.weak().y-1.1f-g.player.y;
+                          in.y=clamp(delta,-1,1);
+                          if(g.shakeClock>5.9f)in.y=0;
+                          if(length(g.player+V{0,1.1f,0}-g.weak())<2.3f)in.buttons|=Attack;
+                      }
+                      g.step(1.f/120,in);
+                  }
+                  std::cout<<"Battle result: mode="<<g.mode<<", hits="<<g.totalHits<<", seconds="<<g.elapsed<<", hp="<<g.hp<<"\n";
+                  assert(g.mode==Victory&&g.totalHits==10);
+              }
+              {Game g;g.mode=Playing;for(int i=0;i<40000;i++){float r=g.random();g.step(1.f/120,{std::sin(i*.01f),std::cos(i*.02f),.001f,0,r<.01f?Jump:r<.02f?Attack:r<.03f?Grab:r<.04f?unsigned(Dodge):0u});if(g.mode==Defeat)g.step(.01f,{0,0,0,0,Reset});assert(std::isfinite(g.player.x)&&std::isfinite(g.player.y)&&std::isfinite(g.player.z));assert(g.stamina>=0&&g.stamina<=100);assert(g.particles.size()<=400);}}
+              std::cout<<"PASS: jump, landing, pause, bounds, collisions, climb, stamina, shock, dodge, timestep, defeat, reset, complete victory and simulation soak.\n";
+          }
+          ''',
+          'tests/rig_test.cpp': r'''#include "../app/src/main/cpp/rig.hpp"
+          #include <cassert>
+          #include <iostream>
+          using namespace cc;
+          void check(const Rig&r){
+           for(int i=0;i<BONES;i++){
+            for(float f:r.skin[i].a)assert(std::isfinite(f));
+            if(parents[i]>=0){V a=rp(r.world[i],{}),b=rp(r.world[parents[i]],{});float expected=length(bind[i]-bind[parents[i]]);assert(std::abs(length(a-b)-expected)<.0001f);}
+           }
+          }
+          int main(){
+           Rig r;for(int i=0;i<BONES;i++)for(int j=0;j<16;j++)assert(std::abs(r.skin[i].a[j]-(j%5==0?1:0))<.00001f);
+           Game g;g.mode=Playing;
+           for(int st=0;st<10;st++){
+            g=Game();g.mode=Playing;g.velocity={};g.player.y=0;
+            if(st==1)g.velocity.z=6.8f;
+            if(st==2){g.player.y=1;g.velocity.y=5;}
+            if(st==3){g.player.y=1;g.velocity.y=-5;}
+            if(st==4){r.wasAir=true;}
+            if(st==5){g.climbing=true;g.player.y=12;}
+            if(st==6)g.dodgeTime=.25f;
+            if(st==7)g.attackAnim=.25f;
+            if(st==8)g.mode=Victory;
+            if(st==9)g.mode=Defeat;
+            r.update(g,1.f/120);assert(r.state==st);
+            for(int i=0;i<180;i++){g.t+=1.f/120;r.update(g,1.f/120);check(r);}
+           }
+           g.mode=Paused;auto before=r.skin;r.update(g,1);for(int i=0;i<BONES;i++)for(int j=0;j<16;j++)assert(before[i].a[j]==r.skin[i].a[j]);
+           // Full movement/combat simulation plus animator, through repeated jumps and attacks.
+           g=Game();g.mode=Playing;
+           for(int i=0;i<12000;i++){unsigned b=i%120==0?unsigned(Jump):i%66==0?unsigned(Attack):0;g.step(1.f/120,{.4f,.6f,0,0,b});r.update(g,1.f/120);check(r);if(g.mode==Defeat){g=Game();g.mode=Playing;r=Rig();}}
+           std::cout<<"PASS: bind pose identity, 18-bone hierarchy, all 10 animation states, pause, length preservation, finite matrices and simulation integration.\n";
+          }
+          ''',
+          'tools/bake_character.py': r'''"""Bake the approved procedural character and automatic skeletal weights into Android assets."""
+          from pathlib import Path
+          import struct,numpy as np,json
+          import modelar
+          root=Path(__file__).resolve().parents[1]
+          # 18 bones, same order and bind positions as rig.hpp. +Y up, +Z forward.
+          REST=np.array([[0,0,0],[0,.91,0],[0,1.08,0],[0,1.27,0],[0,1.41,0],[0,1.52,0],[-.162,1.324,0],[-.246,1.135,.004],[-.30,.957,.025],[.162,1.324,0],[.246,1.135,.004],[.30,.957,.025],[-.079,.89,-.005],[-.10,.515,.01],[-.098,.10,-.003],[.079,.89,-.005],[.10,.515,.01],[.098,.10,-.003]],dtype=np.float32)
+          PARENTS=[-1,0,1,2,3,4,3,6,7,3,9,10,1,12,13,1,15,16]
+          def blend(y,lo,hi):
+           t=np.clip((y-lo)/(hi-lo),0,1);return t*t*(3-2*t)
+          def weights(name,pos):
+           n=len(pos);w=np.zeros((n,18),np.float32);y=pos[:,1];x=np.abs(pos[:,0])
+           head=name.startswith(('Rosto','Orelha','Olho','Iris','Pupila','Reflexo','Palpebra','Sobrancelha','Narina','Labio','Linha_boca','Cabelo','Mecha'))
+           if head:w[:,5]=1
+           elif name.startswith(('Perna','Pe_','Calcanhar','Dedo_pe')):
+            side=0 if '_E' in name else 3;th,sh,ft=12+side,13+side,14+side
+            if name.startswith(('Pe_','Calcanhar','Dedo_pe')):w[:,ft]=1
+            else:
+             knee=blend(y,.455,.575);ankle=blend(y,.075,.155);hip=blend(y,.87,.965)
+             w[:,th]=knee*(1-hip);w[:,sh]=(1-knee)*ankle*(1-hip);w[:,ft]=(1-knee)*(1-ankle)*(1-hip);w[:,1]=hip
+           elif name.startswith(('Braco','Ombro','Palma','Dedo_mao','Polegar')):
+            side=0 if '_E' in name else 3;up,fore,hand=6+side,7+side,8+side
+            if name.startswith(('Palma','Dedo_mao','Polegar')):w[:,hand]=1
+            else:
+             elbow=blend(y,1.085,1.19);wrist=blend(y,.95,1.00);shoulder=blend(x,.12,.185)
+             w[:,up]=elbow*shoulder;w[:,fore]=(1-elbow)*wrist*shoulder;w[:,hand]=(1-elbow)*(1-wrist)*shoulder;w[:,3]=1-shoulder
+           else:
+            s=blend(y,.99,1.12);c=blend(y,1.15,1.29);neck=blend(y,1.365,1.415)
+            w[:,1]=1-s;w[:,2]=s*(1-c);w[:,3]=s*c*(1-neck);w[:,4]=s*c*neck
+           ids=np.argsort(w,axis=1)[:,-4:];v=np.take_along_axis(w,ids,axis=1);v/=v.sum(axis=1,keepdims=True)
+           return ids.astype(np.float32),v
+          vertices=[];indices=[];offset=0
+          for m in modelar.meshes:
+           p=m['v'].copy();n=m['n'].copy()
+           if m['name'].startswith(('Rosto','Orelha','Olho','Iris','Pupila','Reflexo','Palpebra','Sobrancelha','Narina','Labio','Linha_boca','Cabelo','Mecha')):
+            p[:,2]=1.585+(p[:,2]-1.625)*.8;n[:,2]/=.8;n/=np.maximum(np.linalg.norm(n,axis=1,keepdims=True),1e-8)
+           p=p[:,[0,2,1]].copy();p[:,2]*=-1;n=n[:,[0,2,1]].copy();n[:,2]*=-1
+           ids,w=weights(m['name'],p)
+           vertices.append(np.concatenate([p,n,m['c'],w,ids],axis=1).astype('<f4'));indices.append(m['f']+offset);offset+=len(p)
+          v=np.concatenate(vertices);ix=np.concatenate(indices).reshape(-1).astype('<u4')
+          assert np.isfinite(v).all() and ix.max()<len(v)
+          assert np.allclose(v[:,9:13].sum(axis=1),1) and np.all(v[:,13:17]<18)
+          asset=root/'app/src/main/assets/character.skin';asset.parent.mkdir(parents=True,exist_ok=True)
+          asset.write_bytes(struct.pack('<4I',0x324e4b53,len(v),len(ix),18)+v.tobytes()+ix.tobytes())
+          (root/'tools/rig-info.json').write_text(json.dumps(dict(bones=18,parents=PARENTS,bind_positions=REST.tolist(),vertices=len(v),triangles=len(ix)//3),indent=2))
+          print(f'SKIN2: {len(v)} vertices / {len(ix)//3} triangles / 18 bones / four normalized influences per vertex')
+          ''',
+          'tools/modelar.py': r'''"""Malhas reais de um estudo de personagem adulto. NumPy; Z-up, frente -Y.
+          O exportador GLB converte a geometria para Y-up. Não há esqueleto nesta versão.
+          """
+          import numpy as np, math, json, struct
+          from pathlib import Path
+          P=Path(__file__).resolve().parents[1]
+          meshes=[]
+          skin=(.64,.405,.29); ivory=(.87,.85,.77); hair=(.43,.105,.028)
+
+          def add(name,v,f,col,rough=.6):
+           v=np.asarray(v,dtype=np.float32);f=np.asarray(f,dtype=np.uint32)
+           n=np.zeros_like(v)
+           normals=np.cross(v[f[:,1]]-v[f[:,0]],v[f[:,2]]-v[f[:,0]])
+           for i in range(3):np.add.at(n,f[:,i],normals)
+           n[np.linalg.norm(n,axis=1)<1e-8]=[0,0,1]
+           n/=np.maximum(np.linalg.norm(n,axis=1,keepdims=True),1e-10)
+           c=np.tile(np.asarray(col,dtype=np.float32),(len(v),1)) if np.asarray(col).ndim==1 else np.asarray(col,dtype=np.float32)
+           meshes.append(dict(name=name,v=v,f=f,n=n,c=c,rough=rough))
+
+          def gridfaces(rows,cols,wrap=True):
+           f=[]
+           for j in range(rows-1):
+            for i in range(cols if wrap else cols-1):
+             a=j*cols+i;b=j*cols+(i+1)%cols;c=(j+1)*cols+i;d=(j+1)*cols+(i+1)%cols
+             f.extend([(a,b,c),(b,d,c)])
+           return f
+
+          def ellipsoid(name,center,scale,col,seg=28,rings=16,rough=.55):
+           v=[]
+           for j in range(rings+1):
+            a=math.pi*j/rings
+            for i in range(seg):
+             b=2*math.pi*i/seg
+             v.append(np.array(center)+np.array(scale)*[math.sin(a)*math.cos(b),math.sin(a)*math.sin(b),math.cos(a)])
+           add(name,v,[(a,c,b) for a,b,c in gridfaces(rings+1,seg)],col,rough)
+
+          def tube(name,points,radii,col,sides=10,rough=.6):
+           pts=np.array(points,float);v=[]
+           for j,p in enumerate(pts):
+            t=pts[min(j+1,len(pts)-1)]-pts[max(0,j-1)];t/=np.linalg.norm(t)
+            ref=np.array([0,1,0]) if abs(t[1])<.9 else np.array([1,0,0]);a=np.cross(t,ref);a/=np.linalg.norm(a);b=np.cross(t,a)
+            r=radii[j] if hasattr(radii,'__len__') else radii
+            ra,rb=r if hasattr(r,'__len__') else (r,r)
+            for k in range(sides):
+             ang=2*math.pi*k/sides;v.append(p+a*math.cos(ang)*ra+b*math.sin(ang)*rb)
+           # Tube orientation is opposite to the sphere grid convention.
+           add(name,v,gridfaces(len(pts),sides),col,rough)
+
+          TORSO=np.array([
+           [.827,.073,.068,.068],[.86,.110,.082,.090],[.91,.140,.089,.104],
+           [.958,.143,.088,.103],[1.005,.124,.078,.084],[1.06,.109,.073,.075],
+           [1.115,.113,.079,.077],[1.18,.127,.084,.077],[1.235,.146,.093,.078],
+           [1.277,.153,.103,.076],[1.315,.159,.084,.076],[1.345,.165,.067,.071],
+           [1.37,.145,.056,.061],[1.392,.068,.045,.050],[1.416,.043,.039,.042],
+           [1.457,.039,.039,.041]])
+
+          def torso_point(z,a,extra=0):
+           rx,front,back=[np.interp(z,TORSO[:,0],TORSO[:,i]) for i in (1,2,3)]
+           co=math.cos(a);x=(rx+extra)*math.sin(a);y=-(front+extra)*co if co>=0 else -(back+extra)*co
+           # Small asymmetry-free clavicle and rib contour, avoiding mannequin cylinders.
+           y-=.003*math.exp(-((z-1.335)/.014)**2)*max(co,0)*math.sin(a*3)**2
+           return [x,y,z]
+
+          def clothed(z,a):
+           x=torso_point(z,a)[0]
+           straps=(abs(abs(x)-.055)<.0165 and z>.923 and z<1.39)
+           chest=1.232<z<1.285
+           hips=.843<z<.948
+           return straps or chest or hips
+          v=[];colors=[]
+          rows=110;cols=80
+          for j,z in enumerate(np.linspace(TORSO[0,0],TORSO[-1,0],rows)):
+           for i in range(cols):
+            a=i*2*math.pi/cols;v.append(torso_point(z,a))
+            tone=1-.04*math.cos(a*2);colors.append(np.array(skin)*tone)
+          add('Corpo_torso_pescoco',v,gridfaces(rows,cols),colors,.66)
+          # Precisely bounded cloth ribbons and bands, with no grid-mask stair stepping.
+          def cloth_patch(name,zs,angles):
+           vv=[]
+           for z in zs:
+            for a in angles(z):vv.append(torso_point(z,a,.0025))
+           nc=len(angles(zs[0]));ff=gridfaces(len(zs),nc,False)
+           if name.endswith('True'):ff=[(a,c,b) for a,b,c in ff]
+           add(name,vv,ff,ivory,.87)
+          for name,lo,hi in [('Roupa_peito',1.232,1.285),('Roupa_quadril',.842,.948)]:
+           cloth_patch(name,np.linspace(lo,hi,28),lambda z:np.linspace(0,2*math.pi,97))
+          for side in (-1,1):
+           for back in (False,True):
+            def angles(z):
+             rx=np.interp(z,TORSO[:,0],TORSO[:,1]);xs=np.linspace(side*.055-.0165,side*.055+.0165,9)
+             a=np.arcsin(np.clip(xs/(rx+.0025),-.98,.98))
+             return math.pi-a if back else a
+            cloth_patch('Roupa_alca_'+str(side)+str(back),np.linspace(.935,1.379,80),angles)
+          # Human-shaped continuous sections for the legs, rather than stacked primitives.
+          for side in (-1,1):
+           suffix='E' if side<0 else 'D'
+           profile=np.array([
+           [.065,.098,.003,.027,.030],[.135,.099,.008,.030,.036],[.23,.100,.015,.041,.047],
+           [.32,.100,.018,.052,.061],[.395,.10,.012,.046,.053],[.47,.100,-.004,.039,.043],
+           [.515,.100,-.010,.042,.044],[.55,.099,-.002,.046,.049],[.65,.096,.003,.064,.066],
+           [.735,.088,.003,.074,.080],[.815,.079,.005,.078,.087],[.892,.072,.010,.073,.088],[.93,.067,.007,.069,.079],[.965,.065,.003,.053,.062]])
+           vv=[];cc=[];nr=85;nc=40
+           for z in np.linspace(profile[0,0],profile[-1,0],nr):
+            x,y,rx,ry=[np.interp(z,profile[:,0],profile[:,i]) for i in (1,2,3,4)]
+            for k in range(nc):
+             a=k*2*math.pi/nc;cloth=.67<z<.696 or .761<z<.787
+             vv.append([side*x+(rx+(.0018 if cloth else 0))*math.sin(a),y-(ry+(.0018 if cloth else 0))*math.cos(a),z]);cc.append(ivory if cloth else skin)
+           add('Perna_'+suffix,vv,gridfaces(nr,nc),cc,.68)
+           # Heel, instep and discrete toes: overlapping surfaces, explicitly a modeling study.
+           tube('Pe_'+suffix,[(side*.099,.05,.041),(side*.099,.025,.045),(side*.099,-.02,.045),(side*.099,-.07,.035),(side*.099,-.11,.028),(side*.099,-.141,.025)],[(.027,.027),(.041,.033),(.038,.035),(.028,.038),(.022,.039),(.017,.032)],skin,32)
+           ellipsoid('Calcanhar_'+suffix,(side*.099,.026,.052),(.033,.039,.045),skin)
+           for toe in range(5):
+            dx=(toe-2)*.014;length=.025-toe*.0025
+            ellipsoid('Dedo_pe_'+suffix+str(toe),(side*(.071+toe*.014),-.153+toe*.003,.024),( .0095-toe*.0007,length,.013),skin,16,10)
+           # Clavicle, shoulder, upper arm and forearm flow along a relaxed A-pose.
+           pts=[(side*.12,0,1.327),(side*.162,.001,1.324),(side*.191,.001,1.298),(side*.211,.002,1.242),(side*.233,.001,1.18),(side*.246,-.004,1.135),(side*.257,-.012,1.105),(side*.274,-.021,1.05),(side*.291,-.026,.985),(side*.3,-.025,.957)]
+           rs=[(.037,.045),(.047,.047),(.045,.041),(.039,.036),(.031,.031),(.028,.029),(.032,.032),(.032,.031),(.022,.023),(.020,.021)]
+           tube('Braco_'+suffix,pts,rs,skin,32)
+           ellipsoid('Ombro_'+suffix,(side*.161,0,1.322),(.047,.041,.040),skin,32,20)
+           # Palm narrows toward the fingers, with individual knuckles and bent fingertips.
+           tube('Palma_'+suffix,[(side*.301,-.025,.969),(side*.309,-.028,.943),(side*.314,-.030,.911),(side*.315,-.031,.899)],[ (.02,.015),(.027,.015),(.029,.014),(.024,.012)],skin,24)
+           for finger in range(4):
+            x=side*(.291+finger*.015);base=.909-abs(finger-1)*.003;ln=[.060,.071,.067,.050][finger]
+            pts=[(x,-.031,base),(x+side*.003,-.035,base-ln*.45),(x+side*.004,-.046,base-ln*.82),(x+side*.003,-.052,base-ln),(x+side*.002,-.052,base-ln-.001)]
+            tube('Dedo_mao_'+suffix+str(finger),pts,[.0072,.007,.006,.0048,.0008],skin,12)
+           tube('Polegar_'+suffix,[(side*.287,-.027,.945),(side*.279,-.039,.926),(side*.275,-.050,.907),(side*.278,-.056,.898),(side*.279,-.056,.897)],[.011,.010,.008,.006,.001],skin,16)
+          # Sculpted head surface: skull, cheekbones, jaw, recessed sockets and nasal bridge.
+          HEAD=np.array([
+           [1.455,.026,.041,.040],[1.466,.043,.063,.052],[1.477,.062,.082,.068],
+           [1.505,.080,.098,.086],[1.539,.087,.108,.096],[1.574,.092,.110,.105],
+           [1.609,.088,.107,.108],[1.640,.087,.106,.106],[1.679,.086,.095,.099],
+           [1.714,.071,.077,.082],[1.738,.044,.049,.055],[1.751,.002,.002,.002]])
+          v=[];cc=[];nr=88;nc=112
+          for z in np.linspace(HEAD[0,0],HEAD[-1,0],nr):
+           rx,fr,ba=[np.interp(z,HEAD[:,0],HEAD[:,i]) for i in (1,2,3)]
+           for k in range(nc):
+            a=k*2*math.pi/nc;co=math.cos(a);x=rx*math.sin(a);y=-fr*co**.42 if co>0 else -ba*co
+            if co>0:
+             nose=.021*math.exp(-(x/.015)**2-((z-1.569)/.019)**2)+.008*math.exp(-(x/.009)**2-((z-1.602)/.036)**2)
+             sockets=.009*sum(math.exp(-((x-s*.041)/.025)**2-((z-1.617)/.015)**2) for s in (-1,1))
+             muzzle=.007*math.exp(-(x/.033)**2-((z-1.526)/.022)**2)
+             y+=(-nose+sockets-muzzle)*co**2
+            v.append([x,y,z]);blush=.045*math.exp(-((abs(x)-.055)/.024)**2-((z-1.56)/.027)**2)*max(co,0)
+            cc.append([skin[0]+blush,skin[1]-blush*.25,skin[2]-blush*.12])
+          add('Rosto_cranio_esculpido',v,gridfaces(nr,nc),cc,.62)
+          for side in (-1,1):
+           ellipsoid('Orelha_'+str(side),(side*.090,.007,1.565),(.014,.021,.035),skin,24,18)
+           ellipsoid('Orelha_interior_'+str(side),(side*.100,-.002,1.565),(.006,.014,.021),(.48,.265,.20),20,14)
+           # Almond-shaped whites. The curves sit within the sculpted sockets.
+           xc=side*.041;zc=1.614
+           vv=[]
+           for j in range(9):
+            t=j/8
+            for k in range(33):
+             u=-1+2*k/32;x=xc+u*.0205
+             upper=.008*max(0,1-u*u)**.65;lower=-.0055*max(0,1-u*u)**.65
+             z=zc+lower*(1-t)+upper*t
+             y=-.1055-.009*max(0,1-u*u)*(1-((t-.5)*1.2)**2)
+             vv.append([x,y,z])
+           add('Olho_esclera_'+str(side),vv,gridfaces(9,33,False),(.73,.75,.69),.24)
+           # Small iris and pupil, modeled as shallow ellipsoids facing forward.
+           ellipsoid('Iris_'+str(side),(xc,-.1145,zc+.0007),(.0058,.0019,.0060),(.115,.32,.32),24,16,.2)
+           ellipsoid('Pupila_'+str(side),(xc,-.1162,zc+.0007),(.00255,.0007,.0032),(.018,.026,.025),20,12,.18)
+           ellipsoid('Reflexo_olho_'+str(side),(xc-.0015,-.1169,zc+.0025),(.001,.0003,.001),(.95,.96,.90),12,8,.12)
+           for top in (True,False):
+            points=[];rad=[]
+            for k in range(25):
+             u=-1+2*k/24;x=xc+u*.0208;z=zc+(.0082 if top else -.0058)*max(0,1-u*u)**.65
+             points.append((x,-.106-.0068*max(0,1-u*u),z));rad.append(.0007+.0007*(1-u*u))
+            tube('Palpebra_'+str(side)+str(top),points,rad,(.43,.26,.19) if top else skin,8)
+           pts=[];r=[]
+           for k in range(18):
+            u=k/17;x=side*(.020+u*.046);z=1.64+.004*math.sin(u*math.pi)-u*.004;y=-.105+.015*u*u
+            pts.append((x,y,z));r.append(.0011+.0020*math.sin(u*math.pi))
+           tube('Sobrancelha_'+str(side),pts,r,(.245,.090,.041),10)
+           ellipsoid('Narina_'+str(side),(side*.010,-.123,1.557),(.003,.0008,.0018),(.255,.12,.085),16,10)
+          # Cupid's bow, central mouth seam, and lower lip, with restrained volume.
+          for name,lower,col in [('Labio_superior',False,(.48,.235,.205)),('Labio_inferior',True,(.60,.315,.27))]:
+           points=[];rs=[]
+           for k in range(33):
+            u=-1+2*k/32;x=u*.023
+            z=1.524+(-.0025*(1-u*u) if lower else .002*(1-u*u)+.0015*math.exp(-((abs(u)-.32)/.19)**2))
+            points.append((x,-.1135-.005*(1-u*u),z));rs.append(.00035+(.0019 if lower else .0015)*(1-u*u))
+           tube(name,points,rs,col,10,.48)
+          tube('Linha_boca',[(-.022,-.114,1.524),(-.01,-.1186,1.524),(0,-.119,1.5235),(.01,-.1186,1.524),(.022,-.114,1.524)],[.0003,.0005,.0005,.0005,.0003],(.27,.13,.10),8)
+          # Structured copper bob: a solid under-shell and 112 raised, tapered locks.
+          rng=np.random.default_rng(36)
+          def hair_pos(a,t,end,lift=0):
+           z=1.764+(end-1.764)*t
+           rx=np.interp(z,[1.47,1.53,1.60,1.66,1.70,1.735,1.756,1.765],[.109,.114,.112,.106,.095,.071,.036,.001])
+           ry=rx*1.13
+           wave=.0018*math.sin(t*9+a*13)*t
+           return [(rx+lift+wave)*math.sin(a),.006-(ry+lift+wave)*math.cos(a),z]
+          def end_hair(a):
+           front=math.cos(a)
+           if front>.64:return 1.648+.006*math.cos(a*8)
+           if front>.30:return 1.49+.10*((front-.30)/.34)**3
+           return 1.492+.006*math.sin(a*7)
+          vv=[]
+          for j in range(21):
+           for i in range(160):
+            a=i*2*math.pi/160;vv.append(hair_pos(a,j/20,end_hair(a),-.001))
+          add('Cabelo_base',vv,[(a,c,b) for a,b,c in gridfaces(21,160)],hair,.52)
+          for i in range(112):
+           a0=i*2*math.pi/112;da=2*math.pi/112*.97;end=end_hair(a0)+rng.uniform(-.003,.003)
+           vv=[];colors=[];rows=19;cols=5
+           shade=rng.uniform(.84,1.2)
+           for j in range(rows):
+            t=j/(rows-1)
+            for k in range(cols):
+             u=k/(cols-1);a=a0+(u-.5)*da*(1-.35*t**7)
+             vv.append(hair_pos(a,t,end,.0016*math.sin(math.pi*u)*math.sin(math.pi*t)))
+             s=shade*(.88+.18*math.sin(math.pi*u))
+             colors.append(np.array(hair)*s)
+           add('Mecha_%03d'%i,vv,[(a,c,b) for a,b,c in gridfaces(rows,cols,False)],colors,.43)
+          # Correct accidental inward surfaces by checking known outward orientation at generation.
+          # Closed loft rings run counter-clockwise as seen from the top; generated normals checked below.
+
+          def export():
+           for m in meshes:
+            if m['name'].startswith(('Rosto','Orelha','Olho','Iris','Pupila','Reflexo','Palpebra','Sobrancelha','Narina','Labio','Linha_boca','Cabelo','Mecha')):
+             m['v'][:,2]=1.585+(m['v'][:,2]-1.625)*.80
+             m['n'][:,2]/=.80
+             m['n']/=np.maximum(np.linalg.norm(m['n'],axis=1,keepdims=True),1e-10)
+
+           # Binary interchange consumed directly by the preview renderer.
+           vs=[];fs=[];base=0
+           for m in meshes:
+            arr=np.concatenate([m['v'],m['n'],m['c'],np.full((len(m['v']),1),m['rough'])],axis=1).astype('<f4')
+            vs.append(arr);fs.append(m['f']+base);base+=len(arr)
+           verts=np.concatenate(vs);faces=np.concatenate(fs).astype('<u4')
+           with open(P/'modelo.bin','wb') as f:f.write(struct.pack('<II',len(verts),faces.size));f.write(verts.tobytes());f.write(faces.tobytes())
+           # Standard GLB, per-object primitives, vertex colors, PBR roughness, no dependencies.
+           blob=bytearray();views=[];acc=[];gmeshes=[];nodes=[];materials=[]
+           def accessor(a,typ,component,limits=False):
+            while len(blob)%4:blob.append(0)
+            off=len(blob);data=a.tobytes();blob.extend(data);views.append(dict(buffer=0,byteOffset=off,byteLength=len(data)))
+            d=dict(bufferView=len(views)-1,componentType=component,count=len(a),type=typ)
+            if limits:d.update(min=a.min(axis=0).tolist(),max=a.max(axis=0).tolist())
+            acc.append(d);return len(acc)-1
+           for m in meshes:
+            p=m['v'][:,[0,2,1]].copy();p[:,2]*=-1
+            n=m['n'][:,[0,2,1]].copy();n[:,2]*=-1
+            pos=accessor(p.astype('<f4'),'VEC3',5126,True);nor=accessor(n.astype('<f4'),'VEC3',5126);color=accessor(m['c'].astype('<f4'),'VEC3',5126)
+            ind=accessor(m['f'].reshape(-1).astype('<u4'),'SCALAR',5125)
+            materials.append(dict(name=m['name'],doubleSided=True,pbrMetallicRoughness=dict(baseColorFactor=[1,1,1,1],metallicFactor=0,roughnessFactor=m['rough'])))
+            gmeshes.append(dict(name=m['name'],primitives=[dict(attributes=dict(POSITION=pos,NORMAL=nor,COLOR_0=color),indices=ind,material=len(materials)-1)]));nodes.append(dict(name=m['name'],mesh=len(gmeshes)-1))
+           doc=dict(asset=dict(version='2.0',generator='Estudo procedural NumPy / Codex'),scene=0,scenes=[dict(nodes=list(range(len(nodes))))],nodes=nodes,meshes=gmeshes,materials=materials,buffers=[dict(byteLength=len(blob))],bufferViews=views,accessors=acc)
+           js=json.dumps(doc,separators=(',',':')).encode();js+=b' '*((-len(js))%4);blob+=b'\0'*((-len(blob))%4)
+           with open(P/'Personagem-Estudo.glb','wb') as f:
+            f.write(struct.pack('<III',0x46546c67,2,12+8+len(js)+8+len(blob)));f.write(struct.pack('<II',len(js),0x4e4f534a));f.write(js);f.write(struct.pack('<II',len(blob),0x004e4942));f.write(blob)
+           print(f'{len(meshes)} objetos; {len(verts):,} vertices; {len(faces):,} triangulos.')
+           (P/'estatisticas.json').write_text(json.dumps(dict(objects=len(meshes),vertices=len(verts),triangles=len(faces)),indent=2))
+           # Native-scene recipe for anyone opening it in Blender later; Blender not used here.
+           (P/'Abrir-no-Blender.py').write_text('import bpy\nfrom pathlib import Path\np = Path(bpy.context.space_data.text.filepath).parent\nbpy.ops.import_scene.gltf(filepath=str(p / "Personagem-Estudo.glb"))\n')
+          if __name__ == "__main__":
+           export()
+          ''',
+          'tools/rig-info.json': r'''{
+            "bones": 18,
+            "parents": [
+              -1,
+              0,
+              1,
+              2,
+              3,
+              4,
+              3,
+              6,
+              7,
+              3,
+              9,
+              10,
+              1,
+              12,
+              13,
+              1,
+              15,
+              16
+            ],
+            "bind_positions": [
+              [
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.9100000262260437,
+                0.0
+              ],
+              [
+                0.0,
+                1.0800000429153442,
+                0.0
+              ],
+              [
+                0.0,
+                1.2699999809265137,
+                0.0
+              ],
+              [
+                0.0,
+                1.409999966621399,
+                0.0
+              ],
+              [
+                0.0,
+                1.5199999809265137,
+                0.0
+              ],
+              [
+                -0.16200000047683716,
+                1.3240000009536743,
+                0.0
+              ],
+              [
+                -0.2460000067949295,
+                1.1349999904632568,
+                0.004000000189989805
+              ],
+              [
+                -0.30000001192092896,
+                0.9570000171661377,
+                0.02500000037252903
+              ],
+              [
+                0.16200000047683716,
+                1.3240000009536743,
+                0.0
+              ],
+              [
+                0.2460000067949295,
+                1.1349999904632568,
+                0.004000000189989805
+              ],
+              [
+                0.30000001192092896,
+                0.9570000171661377,
+                0.02500000037252903
+              ],
+              [
+                -0.07900000363588333,
+                0.8899999856948853,
+                -0.004999999888241291
+              ],
+              [
+                -0.10000000149011612,
+                0.5149999856948853,
+                0.009999999776482582
+              ],
+              [
+                -0.09799999743700027,
+                0.10000000149011612,
+                -0.003000000026077032
+              ],
+              [
+                0.07900000363588333,
+                0.8899999856948853,
+                -0.004999999888241291
+              ],
+              [
+                0.10000000149011612,
+                0.5149999856948853,
+                0.009999999776482582
+              ],
+              [
+                0.09799999743700027,
+                0.10000000149011612,
+                -0.003000000026077032
+              ]
+            ],
+            "vertices": 59550,
+            "triangles": 109928
+          }''',
+          }
+          root = Path('game')
+          for name, content in files.items():
+              path = root / name
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_text(content, encoding='utf-8')
+          print(f'{len(files)} arquivos gerados. Nenhum asset externo necessario.')
+          PY_PROJECT
+      - name: Python para gerar a personagem e os pesos
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Gerar malha e skinning automaticamente
+        working-directory: game
+        shell: bash
+        run: |
+          python3 -m pip install numpy==1.26.4
+          python3 tools/bake_character.py
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Instalar versões fixadas
+        shell: bash
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+      - name: Testar movimento, física e vitória completa
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=undefined game/tests/game_test.cpp -o game-tests
+          ./game-tests | tee output/TESTES.txt
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -fsanitize=undefined game/tests/rig_test.cpp -o rig-tests
+          ./rig-tests | tee -a output/TESTES.txt
+      - name: Compilar APK universal assinado para instalação
+        working-directory: game
+        shell: bash
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Verificar e empacotar
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp game/app/build/outputs/apk/debug/app-debug.apk output/Colosso-Personagem-Rig.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose output/Colosso-Personagem-Rig.apk | tee output/ASSINATURA.txt
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 -v 4 output/Colosso-Personagem-Rig.apk > output/ALINHAMENTO.txt
+          python3 - <<'PY_VERIFY'
+          import zipfile
+          p='output/Colosso-Personagem-Rig.apk'
+          with zipfile.ZipFile(p) as z:
+              assert 'assets/character.skin' in z.namelist()
+              for abi in ('arm64-v8a','armeabi-v7a','x86_64'):
+                  assert f'lib/{abi}/libcolosso.so' in z.namelist(), abi
+          print('APK contém as três arquiteturas nativas e o asset de personagem.')
+          PY_VERIFY
+          (cd output && sha256sum Colosso-Personagem-Rig.apk > SHA256.txt)
+          cp game/README.md output/LEIA-ME.md
+          echo 'APK compilado por esta execução do GitHub Actions. Consulte o job smoke para a verificação de abertura.' > output/STATUS-CI.txt
+          {
+            echo '### APK disponível'
+            echo 'Baixe **Colosso-Personagem-Rig-APK** em Artifacts e extraia **Colosso-Personagem-Rig.apk**.'
+            echo 'Android 8.0+ / OpenGL ES 3 / ARM64, ARMv7 e x86_64. Assinatura de debug automática.'
+            echo 'O job smoke verifica a abertura em emulador separadamente.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Disponibilizar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Colosso-Personagem-Rig-APK
+          path: output/
+          if-no-files-found: error
+          retention-days: 30
+  smoke:
+    name: Instalar e abrir no emulador
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Colosso-Personagem-Rig-APK
+          path: apk
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Habilitar KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Instalar e verificar primeiro frame
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          target: default
+          profile: Nexus 6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            mkdir -p smoke
+            adb install -r apk/Colosso-Personagem-Rig.apk
+            adb logcat -c
+            adb shell am start -W -n com.aurora.colosso/.MainActivity --ez autostart true
+            sleep 12
+            adb logcat -d > smoke/logcat.txt
+            adb shell pidof com.aurora.colosso
+            grep 'RENDER_OK mode=1' smoke/logcat.txt
+            if grep -q 'FATAL EXCEPTION' smoke/logcat.txt; then exit 1; fi
+            adb exec-out screencap -p > smoke/arena.png
+      - name: Disponibilizar captura e log do emulador
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Colosso-Personagem-Rig-Emulador
+          path: smoke/
+          if-no-files-found: warn
+          retention-days: 14
